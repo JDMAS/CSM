@@ -22,7 +22,7 @@
           "description": "This analytic will make a LOW incident, if a client has issues with the TPM chip",
           "severity": "Low",
           "enabled": true,
-          "query": "Event \n| where EventLog == 'System' and Source has 'TPM' \n| where EventLevelName == 'Error'",
+          "query": "Event \n| where EventLog == \"System\" and Source has \"TPM\" \n| where EventLevelName == \"Error\"",
           "queryFrequency": "P1D",
           "queryPeriod": "P1D",
           "triggerOperator": "GreaterThan",
