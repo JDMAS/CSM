@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    },
+    "new-id": {
+      "type": "string",
+      "defaultValue": "[newGuid()]"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','00000000-0000-0000-0000-000000000008')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','00000000-0000-0000-0000-000000000008')]",
+        "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+        "kind": "Scheduled",
+        "apiVersion": "2022-09-01-preview",
+        "properties": {
+          "displayName": "[concat(parameters('workspace'),' - Security software changed status')]",
+          "description": "This analytic will make an INFORMATIONAL incident, if security software changes status to Off, Snoozed or Expired",
+          "severity": "Informational",
+          "enabled": true,
+          "query": "//This query can be used to alert JDM SOC Team, in case any of JDM's customers security software change status to an unexpected state. \n//You can change the threshold according to your environment.\nEvent \n| where RenderedDescription has 'SECURITY_PRODUCT_STATE_OFF' or RenderedDescription has 'SECURITY_PRODUCT_STATE_SNOOZED' or RenderedDescription has 'SECURITY_PRODUCT_STATE_EXPIRED'",
+          "queryFrequency": "PT30M",
+          "queryPeriod": "PT30M",
+          "triggerOperator": "GreaterThan",
+          "triggerThreshold": 0,
+          "suppressionDuration": "PT5H",
+          "suppressionEnabled": false,
+          "tactics": [],
+          "techniques": [],
+          "alertRuleTemplateName": null,
+          "incidentConfiguration": {
+            "createIncident": true,
+            "groupingConfiguration": {
+              "enabled": false,
+              "reopenClosedIncident": false,
+              "lookbackDuration": "PT5H",
+              "matchingMethod": "AllEntities",
+              "groupByEntities": [],
+              "groupByAlertDetails": [],
+              "groupByCustomDetails": []
+            }
+          },
+          "eventGroupingSettings": {
+            "aggregationKind": "SingleAlert"
+          },
+          "alertDetailsOverride": null,
+          "customDetails": null,
+          "entityMappings": null,
+          "sentinelEntitiesMappings": null
+        }
+      }
+    ]
+}

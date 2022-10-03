@@ -1,0 +1,53 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','25000000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','25000000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2021-10-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Threatview.io - C2 Hunt Feed')]",
+                "description": "Infrastructure hosting Command & Control Servers found during Proactive Hunt by Threatview.io",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "let C2HuntFeed = externaldata(IP: string,values:dynamic) [@\"https://threatview.io/Downloads/High-Confidence-CobaltstrikeC2_IP_feed.txt\"]\r\nwith (format=\"txt\",ignoreFirstRecord=true)\r\n| where IP !startswith \"#\"\r\n| project IP;\r\nC2HuntFeed\r\n| join (DeviceNetworkEvents\r\n| where ActionType ==\"ConnectionSuccess\"\r\n) \r\non $left.IP == $right.RemoteIP\r\n| project TimeGenerated, IP, RemoteIP, DeviceName, RemoteUrl, InitiatingProcessFileName",
+                "queryFrequency": "PT30M",
+                "queryPeriod": "PT30M",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": true,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null
+            }
+		}
+	]
+}

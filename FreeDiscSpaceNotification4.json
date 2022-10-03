@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    },
+    "new-id": {
+      "type": "string",
+      "defaultValue": "[newGuid()]"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','00000000-0000-0000-0000-000000000004')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','00000000-0000-0000-0000-000000000004')]",
+        "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+        "kind": "Scheduled",
+        "apiVersion": "2022-09-01-preview",
+        "properties": {
+          "displayName": "[concat(parameters('workspace'),' - Unit with less than 2% available disc space')]",
+          "description": "This analytic will make an INFORMATIONAL incident, if any unit has less than 2% available disc space remaining",
+          "severity": "Informational",
+          "enabled": true,
+          "query": "//This query can be used to alert JDM SOC Team, in case any of JDM's customers has low disc space. \n//You can change the threshold according to your environment.\nPerf | where ObjectName == \"LogicalDisk\" and CounterName == \"% Free Space\" | summarize FreeSpace = min(CounterValue) by Computer, InstanceName | where FreeSpace < 2 | where InstanceName == \"C: \" | sort by FreeSpace asc nulls last | render barchart kind=unstacked",
+          "queryFrequency": "P1D",
+          "queryPeriod": "P1D",
+          "triggerOperator": "GreaterThan",
+          "triggerThreshold": 0,
+          "suppressionDuration": "P1D",
+          "suppressionEnabled": false,
+          "tactics": [],
+          "techniques": [],
+          "alertRuleTemplateName": null,
+          "incidentConfiguration": {
+            "createIncident": true,
+            "groupingConfiguration": {
+              "enabled": false,
+              "reopenClosedIncident": false,
+              "lookbackDuration": "PT24H",
+              "matchingMethod": "AllEntities",
+              "groupByEntities": [],
+              "groupByAlertDetails": [],
+              "groupByCustomDetails": []
+            }
+          },
+          "eventGroupingSettings": {
+            "aggregationKind": "SingleAlert"
+          },
+          "alertDetailsOverride": null,
+          "customDetails": null,
+          "entityMappings": null,
+          "sentinelEntitiesMappings": null
+        }
+      }
+    ]
+}

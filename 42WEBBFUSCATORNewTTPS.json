@@ -1,0 +1,60 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','42000000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','42000000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - WEBBFUSCATOR Campaign New TTPS – Detection & Response')]",
+                "description": "https://www.socinvestigation.com/webbfuscator-campaign-new-ttps-detection-response/",
+                "severity": "High",
+                "enabled": true,
+                "query": "DeviceProcessEvents | where ((((FolderPath endswith @\"\\Winword.exe\") and (FolderPath endswith @\"\\cmd.exe\") and (ProcessCommandLine contains \"curl\" or ProcessCommandLine contains \"msdllupdate.exe\" or ProcessCommandLine contains \"certutil\" or ProcessCommandLine contains \".jpg\" or ProcessCommandLine contains \"http://\" or ProcessCommandLine contains \"REG ADD\")) or ((FolderPath endswith @\"\\nslookup.exe\") and (ProcessCommandLine contains \"-q=txt\"))) or ((FolderPath endswith \".bat\" or FolderPath endswith \"Msdllupdate.exe\") and (FolderPath matches regex @\".*\\\\Users\\.*\\\\AppData\\.*\\\\Microsoft\\\\Vault\\\\\\.*\" or FolderPath matches regex @\".*\\\\Users\\.*\\\\AppData\\.*\\\\Microsoft\\\\MsSafety\\\\\\.*\")))",
+                "queryFrequency": "PT12H",
+                "queryPeriod": "PT12H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [
+                    "Exfiltration"
+                ],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": {
+                    "Account": "AccountUpn",
+                    "ProcessCommandLine": "ProcessCommandLine",
+                    "Hostname": "DeviceName",
+                    "SHA256": "InitiatingProcessSHA256"
+                },
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}

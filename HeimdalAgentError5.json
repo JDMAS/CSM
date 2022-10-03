@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    },
+    "new-id": {
+      "type": "string",
+      "defaultValue": "[newGuid()]"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','00000000-0000-0000-0000-000000000005')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','00000000-0000-0000-0000-000000000005')]",
+        "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+        "kind": "Scheduled",
+        "apiVersion": "2022-09-01-preview",
+        "properties": {
+          "displayName": "[concat(parameters('workspace'),' - Heimdal Agent Error')]",
+          "description": "This analytic will make an INFORMATIONAL incident, if Heimdal Agent reports an error",
+          "severity": "Informational",
+          "enabled": true,
+          "query": "Event \n| where Source == 'Application Error' and EventLevelName == 'Error' and ParameterXml has 'Heimdal.Agent.exe'",
+          "queryFrequency": "PT360M",
+          "queryPeriod": "PT360M",
+          "triggerOperator": "GreaterThan",
+          "triggerThreshold": 0,
+          "suppressionDuration": "PT5H",
+          "suppressionEnabled": false,
+          "tactics": [],
+          "techniques": [],
+          "alertRuleTemplateName": null,
+          "incidentConfiguration": {
+            "createIncident": true,
+            "groupingConfiguration": {
+              "enabled": false,
+              "reopenClosedIncident": false,
+              "lookbackDuration": "PT360M",
+              "matchingMethod": "AllEntities",
+              "groupByEntities": [],
+              "groupByAlertDetails": [],
+              "groupByCustomDetails": []
+            }
+          },
+          "eventGroupingSettings": {
+            "aggregationKind": "SingleAlert"
+          },
+          "alertDetailsOverride": null,
+          "customDetails": null,
+          "entityMappings": null,
+          "sentinelEntitiesMappings": null
+        }
+      }
+    ]
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','13000000-0000-0000-0000-000000000000')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','13000000-0000-0000-0000-000000000000')]",
+      "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+      "kind": "Scheduled",
+      "apiVersion": "2021-10-01-preview",
+      "properties": {
+        "displayName": "[concat(parameters('workspace'),' - Agent Tesla Spyware Detected')]",
+        "description": "https://www.socinvestigation.com/agent-tesla-spyware-new-ttps-detection-response/",
+        "severity": "Medium",
+        "enabled": true,
+        "query": "SecurityEvent |  where EventID == 4688 | where ((ParentProcessName endswith @'\\OUTLOOK.EXE' or ParentProcessName endswith @'\\WINWORD.EXE' or ParentProcessName endswith @'\\excel.exe' or ParentProcessName endswith @'\\powerpnt.exe') and (NewProcessName endswith @'\\SecuriteInfo.com.BackDoor.SpyBotNET.25.302.exe' or NewProcessName endswith '.exe') and (CommandLine contains @'\\Users\\Admin\\AppData\\Local\\Temp\\'))",
+        "queryFrequency": "PT5M",
+        "queryPeriod": "PT5M",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionDuration": "PT5H",
+        "suppressionEnabled": false,
+        "tactics": [
+          "Collection",
+          "InitialAccess"
+        ],
+        "techniques": [],
+        "alertRuleTemplateName": null,
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": false,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT5H",
+            "matchingMethod": "AllEntities",
+            "groupByEntities": [],
+            "groupByAlertDetails": [],
+            "groupByCustomDetails": []
+          }
+        },
+        "eventGroupingSettings": {
+          "aggregationKind": "SingleAlert"
+        },
+        "alertDetailsOverride": null,
+        "customDetails": null,
+        "entityMappings": null,
+        "sentinelEntitiesMappings": null
+      }
+    }
+  ]
+}

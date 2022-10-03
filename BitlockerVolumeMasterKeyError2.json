@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    },
+    "new-id": {
+      "type": "string",
+      "defaultValue": "[newGuid()]"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','00000000-0000-0000-0000-000000000002')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','00000000-0000-0000-0000-000000000002')]",
+        "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+        "kind": "Scheduled",
+        "apiVersion": "2022-09-01-preview",
+        "properties": {
+          "displayName": "[concat(parameters('workspace'),' - Bitlocker volume master key error')]",
+          "description": "This analytic will make a LOW incident, if a client has issues with bitlocker",
+          "severity": "Low",
+          "enabled": true,
+          "query": "Event \n| where Source == 'Microsoft-Windows-Bitlocker-Driver' and RenderedDescription has 'An unexpected error'",
+          "queryFrequency": "P1D",
+          "queryPeriod": "P1D",
+          "triggerOperator": "GreaterThan",
+          "triggerThreshold": 0,
+          "suppressionDuration": "PT5H",
+          "suppressionEnabled": false,
+          "tactics": [],
+          "techniques": [],
+          "alertRuleTemplateName": null,
+          "incidentConfiguration": {
+            "createIncident": true,
+            "groupingConfiguration": {
+              "enabled": false,
+              "reopenClosedIncident": false,
+              "lookbackDuration": "P1D",
+              "matchingMethod": "AllEntities",
+              "groupByEntities": [],
+              "groupByAlertDetails": [],
+              "groupByCustomDetails": []
+            }
+          },
+          "eventGroupingSettings": {
+            "aggregationKind": "SingleAlert"
+          },
+          "alertDetailsOverride": null,
+          "customDetails": null,
+          "entityMappings": null,
+          "sentinelEntitiesMappings": null
+        }
+      }
+    ]
+}

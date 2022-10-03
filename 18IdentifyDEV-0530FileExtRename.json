@@ -1,0 +1,85 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','18000000-0000-0000-0000-000000000000')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','18000000-0000-0000-0000-000000000000')]",
+      "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+      "kind": "Scheduled",
+      "apiVersion": "2021-10-01-preview",
+      "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Dev-0530 File Extension Rename')]",
+                "description": "Dev-0530 actors are known to encrypt the contents of the victims device as well as renaming the file extensions. This query looks for the creation of files with .h0lyenc extension or presence of ransom note.",
+                "severity": "High",
+        "enabled": true,
+        "query": "(union isfuzzy=true\r\n  (DeviceFileEvents\r\n  | where ActionType == \"FileCreated\"\r\n  | where FileName endswith \".h0lyenc\" or FolderPath == \"C:\\\\FOR_DECRYPT.html\" \r\n  | summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by AccountCustomEntity = iff(isnotempty(InitiatingProcessAccountUpn), InitiatingProcessAccountUpn, InitiatingProcessAccountName), HostCustomEntity = DeviceName, Type, InitiatingProcessId, FileName, FolderPath, EventType = ActionType, Commandline = InitiatingProcessCommandLine, InitiatingProcessFileName, InitiatingProcessSHA256, FileHashCustomEntity = SHA256\r\n  ),\r\n  (imFileEvent\r\n  | where EventType == \"FileCreated\" \r\n  | where TargetFilePath endswith \".h0lyenc\" or TargetFilePath == \"C:\\\\FOR_DECRYPT.html\" \r\n  | summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by AccountCustomEntity = ActorUsername, HostCustomEntity = DvcHostname, DvcId, Type, EventType,  FileHashCustomEntity = TargetFileSHA256, Hash, TargetFilePath, Commandline = ActingProcessCommandLine\r\n  )\r\n  )",
+        "queryFrequency": "P1D",
+        "queryPeriod": "P1D",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionDuration": "PT5H",
+        "suppressionEnabled": false,
+                "tactics": [
+                    "Impact"
+                ],
+                "techniques": [
+                    "T1486"
+                ],
+        "alertRuleTemplateName": null,
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": false,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT5H",
+            "matchingMethod": "AllEntities",
+            "groupByEntities": [],
+            "groupByAlertDetails": [],
+            "groupByCustomDetails": []
+          }
+        },
+        "eventGroupingSettings": {
+          "aggregationKind": "SingleAlert"
+        },
+        "alertDetailsOverride": null,
+        "customDetails": null,
+        "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "AccountCustomEntity"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "FileHash",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Value",
+                                "columnName": "FileHashCustomEntity"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "HostCustomEntity"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}

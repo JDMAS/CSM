@@ -1,0 +1,94 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','48000000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','48000000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Zinc Actor IOCs files - October 2022')]",
+                "description": "Identifies a match across filename and commandline IOC's related to an actor tracked by Microsoft as Zinc.\n  Reference: https://www.microsoft.com/security/blog/2022/09/29/zinc-weaponizing-open-source-software/",
+                "severity": "High",
+                "enabled": true,
+                "query": "let iocs = externaldata(DateAdded:string,IoC:string,Type:string) [@\"https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Feeds/ZincOctober2022IOCs.csv\"] with (format=\"csv\", ignoreFirstRecord=True);\r\n  let file_path = (iocs | where Type =~ \"filepath\" | project IoC);\r\n  let commandline = (iocs | where Type =~ \"commandline\" | project IoC);\r\n  (union isfuzzy=true \r\n  (DeviceNetworkEvents\r\n  | where  InitiatingProcessFolderPath has_any (file_path) or InitiatingProcessCommandLine has_any (commandline)\r\n  | project TimeGenerated, ActionType, DeviceId, DeviceName, InitiatingProcessAccountDomain, InitiatingProcessAccountName, InitiatingProcessCommandLine, InitiatingProcessFolderPath, InitiatingProcessId, InitiatingProcessParentFileName, InitiatingProcessFileName, RemoteIP, RemoteUrl, LocalIP, Type\r\n  | extend timestamp = TimeGenerated, IPCustomEntity = RemoteIP, HostCustomEntity = DeviceName, UrlCustomEntity =RemoteUrl\r\n  ),\r\n  (Event\r\n  | where Source == \"Microsoft-Windows-Sysmon\"\r\n  | where EventID == 1\r\n  | extend EvData = parse_xml(EventData)\r\n  | extend EventDetail = EvData.DataItem.EventData.Data\r\n  | extend Image = EventDetail.[4].[\"#text\"],  CommandLine = EventDetail.[10].[\"#text\"]\r\n  | where Image has_any (file_path)  or   CommandLine has_any (commandline)\r\n  | project TimeGenerated, EventDetail, UserName, Computer, Type, Source, CommandLine, Image\r\n  | extend Type = strcat(Type, \": \", Source)\r\n  | extend timestamp = TimeGenerated, HostCustomEntity = Computer , AccountCustomEntity = UserName, ProcessCustomEntity = tostring(split(Image, '\\\\', -1)[-1])\r\n  ),  \r\n  (DeviceProcessEvents\r\n  | where  ( InitiatingProcessCommandLine has_any (file_path)) or ( InitiatingProcessCommandLine has_any (commandline))  or (InitiatingProcessFolderPath has_any (file_path)) or (InitiatingProcessFolderPath has_any (commandline)) or (FolderPath  has_any (file_path)) or (FolderPath has_any (commandline))\r\n  | project TimeGenerated, ActionType, DeviceId, DeviceName, InitiatingProcessAccountDomain, InitiatingProcessAccountName, InitiatingProcessCommandLine, InitiatingProcessFolderPath, InitiatingProcessId, InitiatingProcessParentFileName, InitiatingProcessFileName, InitiatingProcessSHA256, FolderPath, Type\r\n  | extend timestamp = TimeGenerated, HostCustomEntity = DeviceName , AccountCustomEntity = InitiatingProcessAccountName, ProcessCustomEntity = InitiatingProcessFileName\r\n  ),\r\n  (DeviceFileEvents\r\n  | where  (InitiatingProcessFolderPath has_any (file_path)) or (InitiatingProcessFolderPath has_any (commandline)) or (FolderPath  has_any (file_path)) or (FolderPath  has_any (commandline)) or ( InitiatingProcessCommandLine has_any (commandline)) or ( InitiatingProcessCommandLine has_any (file_path))\r\n  | project TimeGenerated, ActionType, DeviceId, DeviceName, InitiatingProcessAccountDomain, InitiatingProcessAccountName, InitiatingProcessCommandLine, InitiatingProcessFolderPath, InitiatingProcessId, InitiatingProcessParentFileName, InitiatingProcessFileName, RequestAccountName, RequestSourceIP, InitiatingProcessSHA256, FolderPath, Type\r\n  | extend timestamp = TimeGenerated, HostCustomEntity = DeviceName , AccountCustomEntity = RequestAccountName, ProcessCustomEntity = InitiatingProcessFileName\r\n  ),\r\n  (DeviceEvents\r\n  | where  ( InitiatingProcessCommandLine has_any (file_path)) or ( InitiatingProcessCommandLine has_any (commandline)) or (InitiatingProcessFolderPath has_any (file_path)) or (InitiatingProcessFolderPath has_any (commandline)) or (FolderPath  has_any (file_path)) or (FolderPath has_any (commandline))\r\n  | project TimeGenerated, ActionType, DeviceId, DeviceName, InitiatingProcessAccountDomain, InitiatingProcessAccountName, InitiatingProcessCommandLine, InitiatingProcessFolderPath, InitiatingProcessId, InitiatingProcessParentFileName, InitiatingProcessFileName, FolderPath, Type\r\n  | extend CommandLine = InitiatingProcessCommandLine\r\n  | extend timestamp = TimeGenerated, HostCustomEntity = DeviceName , AccountCustomEntity = InitiatingProcessAccountName, ProcessCustomEntity = InitiatingProcessFileName\r\n  ),\r\n  (SecurityEvent\r\n  | where EventID == 4688\r\n  | where ( CommandLine has_any (file_path)) or ( CommandLine has_any (commandline))  or (NewProcessName has_any (file_path)) or (NewProcessName has_any (commandline)) or (ParentProcessName has_any (file_path)) or (ParentProcessName has_any (commandline))\r\n  | project TimeGenerated, Computer, NewProcessName, ParentProcessName, Account, NewProcessId, Type\r\n  | extend timestamp = TimeGenerated, HostCustomEntity = Computer , AccountCustomEntity = Account, ProcessCustomEntity = NewProcessName\r\n  )\r\n  )",
+                "queryFrequency": "PT6H",
+                "queryPeriod": "PT6H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [
+                    "Persistence"
+                ],
+                "techniques": [
+                    "T1546"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "AccountCustomEntity"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "HostCustomEntity"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "IPCustomEntity"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Process",
+                        "fieldMappings": [
+                            {
+                                "identifier": "ProcessId",
+                                "columnName": "ProcessCustomEntity"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}

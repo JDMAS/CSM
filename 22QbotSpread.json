@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','22000000-0000-0000-0000-000000000000')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','22000000-0000-0000-0000-000000000000')]",
+      "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+      "kind": "Scheduled",
+      "apiVersion": "2021-10-01-preview",
+      "properties": {
+        "displayName": "[concat(parameters('workspace'),' - Qbot Spread')]",
+        "description": "https://www.socinvestigation.com/qbot-spreads-via-lnk-files-detection-response/",
+        "severity": "Medium",
+        "enabled": true,
+        "query": "SecurityEvent |  where EventID == 4688 | where ((ParentProcessName endswith @'\\cmd.exe') and CommandLine contains 'http://' and CommandLine contains 'ping15.org' and CommandLine contains @'..\\' and CommandLine contains 'curl.exe' and CommandLine contains 'regsvr32.exe' and CommandLine contains 'msedge.exe')",
+        "queryFrequency": "PT5M",
+        "queryPeriod": "PT5M",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionDuration": "PT5H",
+        "suppressionEnabled": false,
+        "tactics": [],
+        "techniques": [],
+        "alertRuleTemplateName": null,
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": false,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT5H",
+            "matchingMethod": "AllEntities",
+            "groupByEntities": [],
+            "groupByAlertDetails": [],
+            "groupByCustomDetails": []
+          }
+        },
+        "eventGroupingSettings": {
+          "aggregationKind": "SingleAlert"
+        },
+        "alertDetailsOverride": null,
+        "customDetails": null,
+        "entityMappings": null,
+        "sentinelEntitiesMappings": null
+      }
+    }
+  ]
+}

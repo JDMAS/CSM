@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    },
+    "new-id": {
+      "type": "string",
+      "defaultValue": "[newGuid()]"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','20000000-0000-0000-0000-000000000000')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','20000000-0000-0000-0000-000000000000')]",
+        "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+        "kind": "Scheduled",
+        "apiVersion": "2022-09-01-preview",
+        "properties": {
+          "displayName": "[concat(parameters('workspace'),' - Possible STRONTIUM attempted credential harvesting - MTP')]",
+                "description": "Surfaces potential STRONTIUM group Office365 credential harvesting attempts within OfficeActivity Logon events.\\n  References: https://www.microsoft.com/security/blog/2020/09/10/strontium-detecting-new-patters-credential-harvesting/.",
+                "severity": "Low",
+                "enabled": true,
+                "query": "IdentityLogonEvents\r\n| where TimeGenerated > ago(30d)\r\n| where ActionType == \"LogonFailed\"\r\n| where IPAddress startswith \"185.220.101.1.\" or IPAddress startswith \"199.249.230.\" or IPAddress startswith \"23.129.64.\"\r\n| summarize authAttempts=dcount(TimeGenerated),firstAttempt=min(TimeGenerated),lastAttempt=max(TimeGenerated),uniqueIPs=dcount(IPAddress),uniqueAccounts=dcount(AccountObjectId),attemptedAccounts=make_set(AccountObjectId) by DeviceType, OSPlatform\r\n| sort by uniqueAccounts\r\n",
+                "queryFrequency": "PT12H",
+                "queryPeriod": "PT12H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [
+                    "CredentialAccess"
+                ],
+                "techniques": [
+                    "T1110"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "attemptedAccounts"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}

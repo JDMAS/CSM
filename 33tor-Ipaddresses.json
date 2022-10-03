@@ -1,0 +1,53 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','33000000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','33000000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2021-10-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - TOR Ip-addresses')]",
+                "description": "List containing TOR Ip-addresses. Documentation can be found here https://www.linkedin.com/pulse/tor-ip-list-microsoft-sentinel-samik-roy/?trackingId=8aaat3VIbiZt3%2Bt8yD20pw%3D%3D",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "let TOR = externaldata(IP: string,values:dynamic) [@\"https://raw.githubusercontent.com/samikroy/the-tor-project/main/torips.txt\"]\nwith (format=\"txt\")\n| where IP !startswith \"#\"\n| project IP;\nTOR\n| join (DeviceNetworkEvents\n| where ActionType ==\"ConnectionSuccess\"\n) \non $left.IP == $right.RemoteIP\n| project IP\n",
+                "queryFrequency": "PT15M",
+                "queryPeriod": "PT15M",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": true,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT1H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null
+            }
+		}
+	]
+}

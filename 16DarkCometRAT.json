@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','16000000-0000-0000-0000-000000000000')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','16000000-0000-0000-0000-000000000000')]",
+      "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+      "kind": "Scheduled",
+      "apiVersion": "2021-10-01-preview",
+      "properties": {
+        "displayName": "[concat(parameters('workspace'),' - Darkcomet RAT Detected')]",
+        "description": "https://www.socinvestigation.com/darkcomet-rat-returns-with-new-ttps-detection-response/\n\nTargetFilename changed to ProcessName",
+        "severity": "Medium",
+        "enabled": true,
+        "query": "SecurityEvent | where ((((ProcessName contains @'\\Users\\admin\\AppData\\Local\\Temp\\') or (ProcessName endswith '.jpg.exe')) and ((NewProcessName endswith @'\\cmd.exe') and (CommandLine contains '/k attrib' or CommandLine contains '+s' or CommandLine contains '+h')) and (NewProcessName endswith @'\\attrib.exe') and (CommandLine contains @'C:\\Users\\admin\\AppData\\Local\\Temp' or CommandLine contains '+s' or CommandLine contains '+h' or CommandLine contains 'attrib')) and ((ProcessName contains @'C:\\Users\\admin\\Documents\\MSDCSC\\') or (ProcessName endswith 'msdcsc.exe')))",
+        "queryFrequency": "PT5M",
+        "queryPeriod": "PT5M",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionDuration": "PT5H",
+        "suppressionEnabled": false,
+        "tactics": [
+          "InitialAccess"
+        ],
+        "techniques": [],
+        "alertRuleTemplateName": null,
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": false,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT5H",
+            "matchingMethod": "AllEntities",
+            "groupByEntities": [],
+            "groupByAlertDetails": [],
+            "groupByCustomDetails": []
+          }
+        },
+        "eventGroupingSettings": {
+          "aggregationKind": "SingleAlert"
+        },
+        "alertDetailsOverride": null,
+        "customDetails": null,
+        "entityMappings": null,
+        "sentinelEntitiesMappings": null
+      }
+    }
+  ]
+}

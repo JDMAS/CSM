@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    },
+    "new-id": {
+      "type": "string",
+      "defaultValue": "[newGuid()]"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','30000000-0000-0000-0000-000000000000')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','30000000-0000-0000-0000-000000000000')]",
+        "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+        "kind": "Scheduled",
+        "apiVersion": "2022-09-01-preview",
+        "properties": {
+          "displayName": "[concat(parameters('workspace'),' - Possible STRONTIUM attempted credential harvesting')]",
+                "description": "Surfaces potential STRONTIUM group Office365 credential harvesting attempts within OfficeActivity Logon events.\n  References: https://www.microsoft.com/security/blog/2020/09/10/strontium-detecting-new-patters-credential-harvesting/.",
+          "severity": "Low",
+	    "enabled": true,
+                "query": "let IPs = dynamic ([\"199.249.230.\",\"185.220.101.\",\"23.129.64.\",\"109.70.100.\",\"185.220.102.\"]);\r\n  OfficeActivity\r\n  | where RecordType in (\"AzureActiveDirectoryAccountLogon\", \"AzureActiveDirectoryStsLogon\") \r\n  | where Operation != 'UserLoggedIn'\r\n  | extend UserAgent = iff(parse_json(ExtendedProperties)[0].Name =~ \"UserAgent\", extractjson(\"$[0].Value\", ExtendedProperties, typeof(string)),\"\")\r\n  | mv-expand parse_json(ExtendedProperties)\r\n  | where ExtendedProperties.Name =~ \"RequestType\"\r\n  | extend RequestType = ExtendedProperties.Value\r\n  | where ClientIP has_any (IPs)\r\n  | summarize authAttempts=dcount(TimeGenerated), firstAttempt=min(TimeGenerated), lastAttempt=max(TimeGenerated), uniqueIPs=dcount(ClientIP), uniqueAccounts=dcount(UserId), attemptedAccounts=make_set(UserId) by UserAgent\r\n  | where authAttempts > 2500\r\n  | extend timestamp = firstAttempt\r\n  | sort by uniqueAccounts",
+                "queryFrequency": "P7D",
+                "queryPeriod": "P14D",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [
+                    "CredentialAccess"
+                ],
+                "techniques": [
+                    "T1110"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}

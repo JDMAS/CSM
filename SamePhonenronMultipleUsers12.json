@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    },
+    "new-id": {
+      "type": "string",
+      "defaultValue": "[newGuid()]"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','00000000-0000-0000-0000-000000000012')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','00000000-0000-0000-0000-000000000012')]",
+        "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+        "kind": "Scheduled",
+        "apiVersion": "2022-09-01-preview",
+        "properties": {
+          "displayName": "[concat(parameters('workspace'),' - Multiple accounts registered with same mobilenumber')]",
+                "description": "Groups MFA phone registration events into the number that was registered, can be useful to detect threat actors registering multiple accounts to the same numbers for persistence",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "AuditLogs\r\n| where TimeGenerated > ago(90d)\r\n| where TargetResources has \"PhoneNumber\"\r\n| where OperationName has \"Update user\"\r\n| where TargetResources has \"StrongAuthenticationMethod\"\r\n| extend InitiatedBy = tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)\r\n| extend UserPrincipalName = tostring(TargetResources[0].userPrincipalName)\r\n| extend targetResources=parse_json(TargetResources)\r\n| mv-apply tr = targetResources on (\r\n    extend targetResource = tr.displayName\r\n    | mv-apply mp = tr.modifiedProperties on (\r\n    where mp.displayName == \"StrongAuthenticationUserDetails\"\r\n    | extend NewValue = tostring(mp.newValue)\r\n    ))\r\n| project TimeGenerated, NewValue, UserPrincipalName,InitiatedBy\r\n| mv-expand todynamic(NewValue)\r\n| mv-expand NewValue.[0]\r\n| extend AlternativePhoneNumber = tostring(NewValue.AlternativePhoneNumber)\r\n| extend Email = tostring(NewValue.Email)\r\n| extend PhoneNumber = tostring(NewValue.PhoneNumber)\r\n| extend VoiceOnlyPhoneNumber = tostring(NewValue.VoiceOnlyPhoneNumber)\r\n| project TimeGenerated, UserPrincipalName, InitiatedBy,PhoneNumber, AlternativePhoneNumber, VoiceOnlyPhoneNumber, Email\r\n| where isnotempty(PhoneNumber)\r\n| summarize ['Count_of_Users']=dcount(UserPrincipalName), ['List_of_Users']=make_set(UserPrincipalName) by PhoneNumber\r\n| sort by ['Count_of_Users'] desc ",
+                "queryFrequency": "P1D",
+                "queryPeriod": "P1D",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [
+                    "InitialAccess"
+                ],
+                "techniques": [
+                    "T1078"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": {
+                    "RegisteredNumber": "PhoneNumber",
+                    "Users": "List_of_Users"
+                },
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}

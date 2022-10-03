@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspace": {
+      "type": "String"
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','23000000-0000-0000-0000-000000000000')]",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','23000000-0000-0000-0000-000000000000')]",
+      "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+      "kind": "Scheduled",
+      "apiVersion": "2021-10-01-preview",
+      "properties": {
+        "displayName": "[concat(parameters('workspace'),' - Red Teaming Tool BRc4 - Detection Evasion')]",
+        "description": "https://www.socinvestigation.com/threat-actors-use-new-red-teaming-tool-brc4-to-evade-detection-response/",
+        "severity": "Medium",
+        "enabled": true,
+        "query": "SecurityEvent |  where EventID == 4688 | where (((NewProcessName endswith @'\\cmd.exe') and CommandLine contains @'C:\\Users\\' and CommandLine contains '.lnk' and CommandLine contains 'cmd /c' and CommandLine contains @'\\Admin\\AppData\\Local\\Temp\\' and CommandLine contains @'\\AppData\\Local\\Temp\\' and (CommandLine contains @'C:\\Windows\\system32\\cmd.exe' or CommandLine contains '/c' or CommandLine contains 'start' or CommandLine contains 'OneDriveUpdater.exe')) or (NewProcessName endswith @'\\OneDriveUpdater.exe' and (CommandLine contains @'C:\\Users\\Admin\\AppData\\Local\\Temp\\' or CommandLine contains 'VERSION.dll' or CommandLine contains 'vresion.DLL' or CommandLine contains 'OneDrive.Update')))",
+        "queryFrequency": "PT5M",
+        "queryPeriod": "PT5M",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionDuration": "PT5H",
+        "suppressionEnabled": false,
+        "tactics": [
+          "DefenseEvasion"
+        ],
+        "techniques": [],
+        "alertRuleTemplateName": null,
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": false,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT5H",
+            "matchingMethod": "AllEntities",
+            "groupByEntities": [],
+            "groupByAlertDetails": [],
+            "groupByCustomDetails": []
+          }
+        },
+        "eventGroupingSettings": {
+          "aggregationKind": "SingleAlert"
+        },
+        "alertDetailsOverride": null,
+        "customDetails": null,
+        "entityMappings": null,
+        "sentinelEntitiesMappings": null
+      }
+    }
+  ]
+}
