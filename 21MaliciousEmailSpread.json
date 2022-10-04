@@ -17,7 +17,7 @@
             "displayName": "[concat(parameters('workspace'),' - Email Malicious Attachment Spread')]",
             "description": "Malicious Email Attachment has spread",
             "severity": "Medium",
-            "enabled": true,
+            "enabled": false,
             "query": "EmailAttachmentInfo\r\n| where SenderFromAddress != \"\"\r\n| where isnotempty(SHA256)\r\n| join (\r\nDeviceFileEvents\r\n| project FileName, SHA256, DeviceName, DeviceId\r\n) on SHA256\r\n| project FileName, SHA256, DeviceName, DeviceId, NetworkMessageId, SenderFromAddress, RecipientEmailAddress",
             "queryFrequency": "PT5M",
             "queryPeriod": "PT5M",
