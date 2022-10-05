@@ -1,0 +1,85 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','62000000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','62000000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Abnormal download and copy to USB')]",
+                "description": "search the OfficeActivity table for download events, hunt for the anomalies, then use that data to track down the users last logged on machine and retrieve all USB file copy events.",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "let starttime = 7d;\r\nlet timeframe = 1d;\r\nlet operations = dynamic([\"FileSyncDownloadedFull\",\"FileDownloaded\"]);\r\nlet outlierusers=\r\nOfficeActivity\r\n| where TimeGenerated > ago(starttime)\r\n| where Operation in (['operations'])\r\n| extend UserPrincipalName = UserId\r\n| project TimeGenerated, UserPrincipalName\r\n| order by TimeGenerated\r\n| summarize Events=count()by UserPrincipalName, bin(TimeGenerated, timeframe)\r\n| summarize EventCount=make_list(Events),TimeGenerated=make_list(TimeGenerated) by UserPrincipalName\r\n| extend outliers=series_decompose_anomalies(EventCount)\r\n| mv-expand TimeGenerated, EventCount, outliers\r\n| where outliers == 1\r\n| distinct UserPrincipalName;\r\nlet id=\r\nIdentityInfo\r\n| where AccountUPN in (outlierusers)\r\n| where TimeGenerated > ago (21d)\r\n| summarize arg_max(TimeGenerated, *) by AccountName\r\n| extend LoggedOnUser = AccountName\r\n| project LoggedOnUser, AccountUPN, JobTitle, EmployeeId, Country, City\r\n| join kind=inner (\r\nDeviceInfo\r\n| where TimeGenerated > ago (21d)\r\n| summarize arg_max(TimeGenerated, *) by DeviceName\r\n| extend LoggedOnUser = tostring(LoggedOnUsers[0].UserName)\r\n) on LoggedOnUser\r\n| project LoggedOnUser, AccountUPN, JobTitle, Country, DeviceName, EmployeeId;\r\nDeviceEvents\r\n| where TimeGenerated > ago(7d)\r\n| join kind=inner id on DeviceName\r\n| where ActionType == \"UsbDriveMounted\"\r\n| extend DriveLetter = tostring(todynamic(AdditionalFields).DriveLetter)\r\n| join kind=inner (DeviceFileEvents\r\n| where TimeGenerated > ago(7d)\r\n| extend FileCopyTime = TimeGenerated\r\n| where ActionType == \"FileCreated\"\r\n| parse FolderPath with DriveLetter '\\\\' *\r\n| extend DriveLetter = tostring(DriveLetter)\r\n) on DeviceId, DriveLetter\r\n| extend FileCopied = FileName1\r\n| distinct DeviceName, DriveLetter, FileCopied, LoggedOnUser, AccountUPN, JobTitle, EmployeeId, Country, TimeGenerated",
+                "queryFrequency": "PT4H",
+                "queryPeriod": "PT4H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [
+                    "Exfiltration"
+                ],
+                "techniques": [
+                    "T1052"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "FileCopied"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "AccountUPN"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}
