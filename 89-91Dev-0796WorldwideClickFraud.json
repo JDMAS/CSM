@@ -1,0 +1,122 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/91000000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/91000000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Dev-0796 Worldwide Click Fraud')]",
+                "description": "https://redcanary.com/blog/chromeloader/\nhttps://www.gdatasoftware.com/blog/2022/01/37236-qr-codes-on-twitter-deliver-malicious-chrome-extension\nhttps://www.th3protocol.com/2022/Choziosi-Loader\nhttps://attack.mitre.org/techniques/T1053/005\nhttps://attack.mitre.org/techniques/T1176\nhttps://attack.mitre.org/techniques/T1620\nhttps://attack.mitre.org/techniques/T1027/\nhttps://attack.mitre.org/techniques/T1140/",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "DeviceRegistryEvents \r\n// searches for 3 distinct registry keys to store data for use as C2 or reflectively loading binaries \r\n| where InitiatingProcessFileName =~ \"powershell.exe\" \r\n    and RegistryValueType =~ \"String\" \r\n| where \r\n    ( RegistryKey endswith @\"SOFTWARE\\LogiShdr\" \r\n        and RegistryValueName =~ \"Settings\" \r\n    ) \r\n    or   \r\n    ( RegistryKey endswith @\"SOFTWARE\\Martin Prikyrl\" \r\n        and RegistryValueName =~ \"Sessions\" \r\n    ) \r\n    or \r\n    ( RegistryKey endswith @\"SOFTWARE\\aignes\" \r\n        and RegistryValueName =~ \"deadlinks\" \r\n    ) \r\n    or \r\n    ( RegistryKey endswith @\"SOFTWARE\\SiberSystems\" \r\n        and  RegistryValueName =~ 'System' \r\n    ) \r\n| summarize FirstSeen=min(TimeGenerated), Count=count() by DeviceId, RegistryKey, RegistryValueName, RegistryValueType, ActionType",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [
+                    "DefenseEvasion",
+                    "Persistence"
+                ],
+                "techniques": [
+                    "T1140",
+                    "T1027",
+                    "T1176",
+                    "T1053"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "RegistryKey",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Key",
+                                "columnName": "RegistryKey"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "RegistryValue",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "RegistryValueName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null
+            }
+        },
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/89000000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/89000000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Dev-0796 Worldwide Click Fraud Potential Related Values')]",
+                "description": "",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "DeviceRegistryEvents //Captures registry values potentially related to click fraud activity \r\n| where RegistryValueType =~ 'String'     and InitiatingProcessFileName =~ 'powershell.exe'     and InitiatingProcessCommandLine has_all ('powershell', 'windowStyle', 'hidden') | where strlen(RegistryValueData) > 5000 | project TimeGenerated, DeviceId, RegistryValueName, RegistryKey, lenRegValueData=strlen(RegistryValueData)",
+                "queryFrequency": "PT2H",
+                "queryPeriod": "PT2H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}
