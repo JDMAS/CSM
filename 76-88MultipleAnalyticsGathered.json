@@ -555,7 +555,7 @@
             }
         },
         {
-            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/85000000-0000-0000-0000-000000000000)]",
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/85000000-0000-0000-0000-000000000000')]",
             "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/85000000-0000-0000-0000-000000000000')]",
             "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
             "kind": "Scheduled",
