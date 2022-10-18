@@ -18,7 +18,7 @@
                 "description": "Incident if user gets locked due to too many login attempts",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "SigninLogs\r\n| where ResultDescription == \"Account is locked because user tried to sign in too many times with an incorrect user ID or password.\"\r\n| project UserDisplayName, DeviceDetail.operatingSystem, IPAddress, UserPrincipalName, ConditionalAccessStatus, LocationDetails.city, DeviceDetail.browser",
+                "query": "SigninLogs\r\n| where ResultDescription == \"Account is locked because user tried to sign in too many times with an incorrect user ID or password.\"\r\n| project UserDisplayName, DeviceDetail.operatingSystem, IPAddress, UserPrincipalName, ConditionalAccessStatus, LocationDetails.city, Location, DeviceDetail.browser",
                 "queryFrequency": "PT15M",
                 "queryPeriod": "PT15M",
                 "triggerOperator": "GreaterThan",
