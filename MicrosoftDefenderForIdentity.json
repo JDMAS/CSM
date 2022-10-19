@@ -20,7 +20,7 @@
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - Create incidents based on Microsoft Defender for Identity alerts')]",
                 "description": "Create incidents based on all alerts generated in Microsoft Defender for Identity",
-                "enabled": false,
+                "enabled": true,
                 "productFilter": "Azure Advanced Threat Protection",
                 "severitiesFilter": null,
                 "displayNamesFilter": null,
