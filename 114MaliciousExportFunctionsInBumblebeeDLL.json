@@ -1,0 +1,74 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','11400000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','11400000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Malicious export functions in Bumblebee DLL')]",
+                "description": "Look for command line which contains malicious export functions as listed in query – this is a list of observed exports at time of writing and may change over time.",
+                "severity": "High",
+                "enabled": true,
+                "query": "union DeviceFileEvents, DeviceProcessEvents | where ProcessCommandLine has_any (\"juwXYebIfE\",\"LeKGTMwkFQ\",\"dSjXqiVvQK\",\"SjVjlixjPb\",\"MDbJvVaNCR\",\"EPTsswwiRJ\",\"IternalJob\",\"YTBSBbNTWU\", \"AUjoZKdcSZ\",\"xshiMECwuG\",\"rBgTBiTTDW\",\"EUQtIMIQqE\",\"shjKeAQfgT\",\"zYKGjAgZov\",\"pGUAYVFxbN\",\"VcrbRMwpuk\",\"ZmJwfQQnqA\",\"zYKGjAgZov\",\"kXlNkCKgFC\") ",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [
+                    "DefenseEvasion",
+                    "Discovery",
+                    "Execution",
+                    "InitialAccess",
+                    "LateralMovement",
+                    "Persistence"
+                ],
+                "techniques": [
+                    "T1070",
+                    "T1055",
+                    "T1014",
+                    "T1218",
+                    "T1120",
+                    "T1069",
+                    "T1018",
+                    "T1016",
+                    "T1053",
+                    "T1204",
+                    "T1566",
+                    "T1021",
+                    "T1053"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}
