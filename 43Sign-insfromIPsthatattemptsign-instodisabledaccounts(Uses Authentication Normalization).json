@@ -29,7 +29,10 @@
                     "InitialAccess",
                     "Persistence"
                 ],
-                "techniques": [],
+                "techniques": [
+                    "T1078",
+                    "T1098"
+                ],
                 "alertRuleTemplateName": "95002681-4ecb-4da3-9ece-26d7e5feaa33",
                 "incidentConfiguration": {
                     "createIncident": true,
@@ -47,9 +50,7 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": {
-                    "LogonType": "Type"
-                },
+                "customDetails": null,
                 "entityMappings": [
                     {
                         "entityType": "IP",
@@ -59,19 +60,10 @@
                                 "columnName": "IPCustomEntity"
                             }
                         ]
-                    },
-                    {
-                        "entityType": "Account",
-                        "fieldMappings": [
-                            {
-                                "identifier": "AadUserId",
-                                "columnName": "disabledAccountSet"
-                            }
-                        ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.1"
+                "templateVersion": "1.0.2"
             }
         }
     ]
