@@ -1,0 +1,89 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','11600000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','11600000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Possible Emotet activity')]",
+                "description": "https://security.microsoft.com/threatanalytics3/1129e2b4-9028-4072-9408-04459d670cd8/analystreport?tid=f1e77b99-3f88-40a1-a3f9-7d087f375d7d",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "EmailEvents \n// Identify inbound emails with a reply or forward \n| where Subject has_any('RE:', 'FW:', 'FWD:', 'AW:', 'WG:', 'TR:') and EmailDirection == \"Inbound\"   \n// Join when emails have XLS or ZIP file attachments \n| join kind=inner (EmailAttachmentInfo     \n| where FileName has_any('.xls', '.zip'))\n    on NetworkMessageId \n| project Subject, FileName, RecipientEmailAddress, DeliveryAction, SenderDisplayName, SenderFromAddress, SenderIPv4",
+                "queryFrequency": "PT4H",
+                "queryPeriod": "PT4H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "FileName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "MailMessage",
+                        "fieldMappings": [
+                            {
+                                "identifier": "NetworkMessageId",
+                                "columnName": "Subject"
+                            },
+                            {
+                                "identifier": "Sender",
+                                "columnName": "SenderFromAddress"
+                            },
+                            {
+                                "identifier": "P1Sender",
+                                "columnName": "SenderDisplayName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Mailbox",
+                        "fieldMappings": [
+                            {
+                                "identifier": "MailboxPrimaryAddress",
+                                "columnName": "RecipientEmailAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}
