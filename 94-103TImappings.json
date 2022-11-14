@@ -735,7 +735,7 @@
             "kind": "Scheduled",
             "apiVersion": "2022-10-01-preview",
             "properties": {
-                "displayName": "concat(parameters('workspace'),' - TI map IP entity to AzureActivity'",
+                "displayName": "concat(parameters('workspace'),' - TI map IP entity to AzureActivity')]",
                 "description": "Identifies a match in AzureActivity from any IP IOC from TI",
                 "severity": "Medium",
                 "enabled": true,
