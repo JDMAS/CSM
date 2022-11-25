@@ -137,7 +137,7 @@
             "kind": "Scheduled",
             "apiVersion": "2022-09-01-preview",
             "properties": {
-		"displayName": "[concat(parameters('workspace'),' - Brute force attack against a Cloud PC')]",
+		"displayName": "[concat(parameters('workspace'),' - Potential brute force attack against a Cloud PC')]",
                 "description": "Identifies evidence of brute force activity against a Windows 365 Cloud PC by highlighting multiple authentication failures and by a successful authentication within a given time window.",
                 "severity": "Medium",
                 "enabled": true,
