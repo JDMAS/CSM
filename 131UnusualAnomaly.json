@@ -1,0 +1,57 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','13100000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','13100000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Unusual Anomaly')]",
+                "description": "Anomaly Rules generate events in the Anomalies table. This scheduled rule tries to detect Anomalies that are not usual, they could be a type of Anomaly that has recently been activated, or an infrequent type. The detected Anomaly should be reviewed, if it is relevant enough, eventually a separate scheduled Analytics Rule could be created specifically for that Anomaly Type, so an alert and/or incident is generated everytime that type of Anomaly happens.",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "// You can leave out Anomalies that are already monitored through other Analytics Rules\n//let _MonitoredRules = dynamic([\"TestAlertName\"]);\nlet query_frequency = 1h;\nlet query_lookback = 3d;\nAnomalies\n| where TimeGenerated > ago(query_frequency)\n//| where not(RuleName has_any (_MonitoredRules))\n| join kind = leftanti (\n    Anomalies\n    | where TimeGenerated between (ago(query_frequency + query_lookback)..ago(query_frequency))\n    | distinct RuleName\n) on RuleName",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "P4D",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [],
+                "techniques": [],
+                "alertRuleTemplateName": "d0255b5f-2a3c-4112-8744-e6757af3283a",
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "AlertPerResult"
+                },
+                "alertDetailsOverride": {
+                    "alertDisplayNameFormat": "Unusual Anomaly - {{RuleName}}",
+                    "alertTacticsColumnName": "Tactics"
+                },
+                "customDetails": null,
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.1"
+            }
+        }
+    ]
+}
