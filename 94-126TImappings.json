@@ -582,7 +582,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Name"
                             }
                         ]
                     }
