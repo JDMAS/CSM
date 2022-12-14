@@ -1,0 +1,81 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','13800000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','13800000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Microsoft signed drivers being used maliciously')]",
+                "description": "https://security.microsoft.com/threatanalytics3/e05c32a1-2f95-40ce-8ac9-138625b24675/analystreport?tid=f1e77b99-3f88-40a1-a3f9-7d087f375d7d",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "let sha256Hashes = dynamic([\"031408cf2f2c282bcc05066356fcc2bb862b7e3c504ab7ffb0220bea341404a5\",\r\n    \"04c49a9ff453dbb0f5b1c94f8c201635418bae8d4e90274c85ca79c3270247b4\",\r\n    \"0b23b7be268615f288be92f90115d8188193be55e9c7b11b13cdc45f25cc6f08\",\r\n    \"0bed2aa2d8529a55c17d6295857e2d891d9c41be891eed3ee81932421ce35365\",\r\n    \"0e5834cd48e78e9ef6bdc8ed57e0aecc591718649fb96fccf35cfbc840a4d0ad\",\r\n    \"0f50195a63b56b994abb71d96a916289398cf8b65f2b7c0ce167f51d80fbe3ee\",\r\n    \"10e4cc4dff95eea89569d408cf13d11ed0498f1e9f30b2bac536d0292fc99782\",\r\n    \"12f576b89f124c7c7785e28f66b399f9f50cfd395854d542e510efd6afad6e0b\",\r\n    \"15b7feb78fe5ed5f6bec7ed17895682d4675efe7ce5848a09d4cc1f2fefd8ab5\",\r\n    \"16558d72c51b2e129faf9d30bf103f16198ac71597531865216e384df2cd7e0a\",\r\n    \"19d0b0c962e436407dc1d4016a511762e2cac89a0cdd0ae0c02e1e8245529af3\",\r\n    \"19d88c7fe741d3299ab8ec21689bafea03eb82ea376da959021cd6ce0b6a0587\",\r\n    \"1a983e597abdb37653baba58de85bb8e55c6f20aa6bcbd7420b9d14dca586bb7\",\r\n    \"1b670c8ce0f3f30e8bb3a27a18ff15137e636822120f974f379f46e892f0b46f\",\r\n    \"1bed0b3480d09c179e54c3fe5096f198d3eb25aacb1f8f22a7c88ec68da568b9\",\r\n    \"2463d7cb0159e872879f5e9799f0b0fe6b66c0afe901acb72f189b1b85d71a8e\",\r\n    \"2bec71d2f8c33faa8647127f28b4c01b37e99a404232727e7aa2f0579ef35dd9\",\r\n    \"2c7bf86581ab5efe953ad286c004a571ff60eee8b0fda9ae28503c96366f1174\",\r\n    \"2edc60c62f8f5021f2c4cc5f182400b73686a7d729a9550b6fba0f0fff59d691\",\r\n    \"2f58d3a022d423c63d6327f5c0fcf8afb9f3eb278f04326692fabcb1cae6a4c3\",\r\n    \"42a995ca839e5f4edbdede2ece8bf306e5b26d44edf260e4c78e4c70d9381860\",\r\n    \"42b22faa489b5de936db33f12184f6233198bdf851a18264d31210207827ba25\",\r\n    \"42f0a27c40dffed5b7698b77b09c30ad6169a3b68a9422952e360fd6ceaf0b69\",\r\n    \"460a462cc2a2491e269eee2061f9a4669be5ab853d2cdfd61a3bf9e33c02c9b5\",\r\n    \"47e89746c5e2abd74098ad2f61bae0bff28cfdfd87eb9a0e88b01e521607c135\",\r\n    \"498c671fafcfa357384cec0a9e1f0869aac18282e86d707c23f3a533e464404c\",\r\n    \"4b3508bc39e2b0c7f57bad4f15b430a88bc27433e96b2e15be6208f0ddc6998f\",\r\n    \"4d3e0f27a7bcfd4b442b489c63641af22285ca41c6d56ac1db734196ab10b315\",\r\n    \"4db05e500e32188c1467cc6f336faed1fcf38190272fe1d98e46854bfcb7cd79\",\r\n    \"51df71acb3d1c1b918d7b9023e34bb6f5628109a686136240341cfbbbab470b8\",\r\n    \"571ab8f6eac998abab8d7eaf1bc98f83cc0d61e5280eaac9cb2635672a7bc145\",\r\n    \"575e58b62afab094c20c296604dc3b7dd2e1a50f5978d8ee24b7dca028e97316\",\r\n    \"5890dbd95e05b0c96867137261caa46673f5dadc0ab3a7f37f80a009536106e3\",\r\n    \"65e07229bd45d5e40533076e0fbc8016a734b943e76904e172cec43761111c2d\",\r\n    \"65f5b1a959c1159ecffe20aef2cdd74805b176b4d23925a666afa5c920be6386\",\r\n    \"66168b6ff4457ed0f95585b697b8798637668aa5feaa3f1463004e5e9f9bf477\",\r\n    \"6839fcae985774427c65fe38e773aa96ec451a412caa5354ad9e2b9b54ffe6c1\",\r\n    \"69292cd27c1a0361b221067400da49dbdf8079d95848507b1e356b3d131ed0df\",\r\n    \"6b5af0a9a3e2f3983666025acbc1a0c996c9d96f2864c001a566a2c06f19ca03\",\r\n    \"6b5cf41512255237064e9274ca8f8a3fef820c45aa6067c9c6a0e6f5751a0421\",\r\n    \"6d30a8b779f5ee0c9883ddfa940e4b6a75209a3153f8e40c2d3b4b2970f0b0a1\",\r\n    \"6e0950c61a2748d8e1797147a259798b36ffa294c19f1b0e64cf1b4eef376ab1\",\r\n    \"6e25dea9b41980714b376dbb8c9e9437962b1b0bcb8b75f4e77915472a90e90c\",\r\n    \"76a20dc6ed519620efa627249d3c5dd47835734a5c160331e86ae94489f4624e\",\r\n    \"7a0c301fa0e118ecbe47367866ca1d86e288c5a1c5c9d5208e86b89f5a1cd2b2\",\r\n    \"7e9e5e8f07fa3a0c66b24895f751eeb74f7873b87d60dba07bfc3ae97ddd24fe\",\r\n    \"7edeffb31822cfdfc5cf72265e0b034214af55b4f8384373a7e816077eaa4015\",\r\n    \"7f4555a940ce1156c9bcea9a2a0b801f9a5e44ec9400b61b14a7b1a6404ffdf6\",\r\n    \"81636544a15285f5ab37ddf64d8f480c10ac96a21026bf71a0fc0b8fca6db5b2\",\r\n    \"87e3ea1d694dc817d0801a9adb986d42a562e9f32b9ae8757f3ed3dc0e475332\",\r\n    \"88076e98d45ed3adf0c5355411fe8ca793eb7cec1a1c61f5e1ec337eae267463\",\r\n    \"8e035beb02a411f8a9e92d4cf184ad34f52bbd0a81a50c222cdd4706e4e45104\",\r\n    \"9137b1a251ab1b51bc55c2321b439ff15ab3e3e50bf52b04e77ae256e936726a\",\r\n    \"9ba0ff8887f5b48eb5c693e2795137e353e2e3adc7fc59bbc2a59edea35fc2ab\",\r\n    \"9bb09752cf3a464455422909edef518ac18fe63cf5e1e8d9d6c2e68db62e0c87\",\r\n    \"9ebb5453876a19b7c258210e613c4d8c8a4922a1c942421f164e605967dbcdf5\",\r\n    \"a33b51e466fb1310ed23180d8933e017c0d5ed8f7f82c2df317dd4f0f1dca460\",\r\n    \"a56abc9f9d6a132baf167a73fd80e75ce01c7c72e7a86f5debf7b12e6aa04ec6\",\r\n    \"a8d9d79bf964fa3c48974572d7cdb0fc6f12eca8962c0e147b399126bf3961ab\",\r\n    \"b1c699e7b691dfe4aab5ae89ce9006f337eac711ac99618143eef4f7ad43d4bb\",\r\n    \"c017c013c23e2bc32e784e9bc9ad7409b7cd3cdf25f1725653a3becb7a1166a1\",\r\n    \"c3838fb380f60ff5de63bc2c20f466861810b9a4f617306b42cb883a04cc8afe\",\r\n    \"c53d852e74e7a96b552169556fdc7d9fc39e5ba3640a74741c67f17edb72f594\",\r\n    \"c8f9e1ad7b8cce62fba349a00bc168c849d42cfb2ca5b2c6cc4b51d054e0c497\",\r\n    \"c9ab33c4e9467f040d5a9cc13138bcd2f7624b8f508d8b8bb4efe32d386f1b1e\",\r\n    \"ccb8cfde53f6e66736d2b78555cc7aa443452a75e93f5f7818f673f9391d4caa\",\r\n    \"d5b8347f8d8408dcda8256447b09ee8a1ff97dc225d6632e4b7db13061db0df5\",\r\n    \"d71787781f7813e6bc6d818d0bfb35224f17755b32cb91178c7ec29f3d7b3945\",\r\n    \"e06a3f8187970f5ae1b10b1cbed926867f617592a3b976887c6343417f29eff9\",\r\n    \"e18d4d96dfb29490e8de4a41649d3bf222210cd49b281adc10e772d34f210de0\",\r\n    \"f845e34d2a3c20aa8cb65ec9d115aed9c7c9dd17e4280a6262e6151306267ccd\",\r\n    \"faa4478c3277ee1ae7c27e1489c48da4e719604b769ef1a892e09598500d8e8f\",\r\n    \"fb231a300472e35fefc3688f6adf9d2a42787294ed73f01b1995bdbd29c1bd3a\",\r\n    \"fba3453b21149c300e98159e48d484edbc9b627a71b61d04a62369aac748ade8\",\r\n    \"fd1972ce4f9a6f83218daf3ec4cd47b06a0bb489a99ca55befb18c3c2f670a69\",\r\n    \"fd223833abffa9cd6cc1848d77599673643585925a7ee51259d67c44d361cce8\"]);\r\n//let signames = dynamic([\"Trojan:Win64/RootkitDrv\"]);\r\nDeviceEvents\r\n| where InitiatingProcessSHA256 has_any (sha256Hashes) or SHA256 has_any (sha256Hashes)",
+                "queryFrequency": "P1D",
+                "queryPeriod": "P1D",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "tactics": [],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "FileHash",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Value",
+                                "columnName": "InitiatingProcessSHA256"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "InitiatingProcessFolderPath"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null
+            }
+        }
+    ]
+}
