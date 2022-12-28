@@ -18,7 +18,7 @@
                 "description": "Malicious indicators of compromise gathered from OSINT Source - Twitter and Pastebin",
                 "severity": "Low",
                 "enabled": true,
-                                "query": "let OSINT = externaldata(IP: string,values:dynamic) [@\"https://threatview.io/Downloads/Experimental-IOC-Tweets.txt\"]\r\nwith (format=\"txt\",ignoreFirstRecord=true)\r\n| where IP !startswith \"#\"\r\n| project IP;\r\nOSINT\r\n| join (DeviceNetworkEvents\r\n| where ActionType ==\"ConnectionSuccess\"\r\n| where RemoteUrl != \"192.168.1.2\" and RemoteIP != \"192.168.1.2\"\r\n) \r\non $left.IP == $right.RemoteIP\r\n| project TimeGenerated, IP, RemoteIP, DeviceName, RemoteUrl, InitiatingProcessFileName, InitiatingProcessAccountUpn, InitiatingProcessParentFileName, InitiatingProcessIntegrityLevel, InitiatingProcessSHA256, RemotePort, LocalPort",
+                                "query": "let OSINT = externaldata(IP: string,values:dynamic) [@\"https://threatview.io/Downloads/Experimental-IOC-Tweets.txt\"]\r\nwith (format=\"txt\",ignoreFirstRecord=true)\r\n| where IP !startswith \"#\"\r\n| project IP;\r\nOSINT\r\n| join (DeviceNetworkEvents\r\n| where ActionType ==\"ConnectionSuccess\"\r\n| where RemoteUrl !contains \"192.168.\" and RemoteIP !contains \"192.168.\"\r\n) \r\non $left.IP == $right.RemoteIP\r\n| project TimeGenerated, IP, RemoteIP, DeviceName, RemoteUrl, InitiatingProcessFileName, InitiatingProcessAccountUpn, InitiatingProcessParentFileName, InitiatingProcessIntegrityLevel, InitiatingProcessSHA256, RemotePort, LocalPort",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
                 "triggerOperator": "GreaterThan",
