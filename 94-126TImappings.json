@@ -18,7 +18,7 @@
                 "description": "Identifies a match in DnsEvents from any Domain IOC from TI",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\n//Create a list of TLDs in our threat feed for later validation\nlet list_tlds = ThreatIntelligenceIndicator\n| where TimeGenerated > ago(ioc_lookBack)\n| where isnotempty(DomainName)\n| extend parts = split(DomainName, '.')\n| extend tld = parts[(array_length(parts)-1)]\n| summarize count() by tostring(tld)\n| summarize make_list(tld);\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n| where Description != \"Very low risk of malicious activity.\"\n| where ThreatType != \"anomalous-activity\"\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(DomainName)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n     DnsEvents\n    | where TimeGenerated > ago(dt_lookBack)\n    //Extract domain patterns from syslog message\n    | where isnotempty(Name)\n    | extend parts = split(Name, '.')\n    //Split out the TLD\n    | extend tld = parts[(array_length(parts)-1)]\n    //Validate parsed domain by checking if the TLD is in the list of TLDs in our threat feed\n    | where tld in~ (list_tlds)\n    | extend DNS_TimeGenerated = TimeGenerated\n) on $left.DomainName==$right.Name\n| where DNS_TimeGenerated < ExpirationDateTime\n| summarize DNS_TimeGenerated  = arg_max(DNS_TimeGenerated , *) by IndicatorId, Name\n| project DNS_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, Url, Computer, ClientIP, Name, QueryType\n| extend timestamp = DNS_TimeGenerated, HostCustomEntity = Computer, IPCustomEntity = ClientIP, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True);\n//Create a list of TLDs in our threat feed for later validation\nlet list_tlds = ThreatIntelligenceIndicator\n| where TimeGenerated > ago(ioc_lookBack)\n| where isnotempty(DomainName)\n| extend parts = split(DomainName, '.')\n| extend tld = parts[(array_length(parts)-1)]\n| summarize count() by tostring(tld)\n| summarize make_list(tld);\nlet Domain_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(DomainName)\n| extend TI_DomainEntity = DomainName\n),\n(IoCList\n| where IoC_Type =~ 'domainname'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_DomainEntity = IoC\n| project-away  IoC_Type\n)\n);\nDomain_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n  DnsEvents\n  | where TimeGenerated > ago(dt_lookBack)\n  //Extract domain patterns from syslog message\n  | where isnotempty(Name)\n  | extend parts = split(Name, '.')\n  //Split out the TLD\n  | extend tld = parts[(array_length(parts)-1)]\n  //Validate parsed domain by checking if the TLD is in the list of TLDs in our threat feed\n  | where tld in~ (list_tlds)\n  | extend DNS_TimeGenerated = TimeGenerated\n) on $left.TI_DomainEntity==$right.Name\n| where DNS_TimeGenerated < ExpirationDateTime\n| summarize DNS_TimeGenerated  = arg_max(DNS_TimeGenerated , *) by IndicatorId, Name, IoC\n| project DNS_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, Url, Computer, ClientIP, Name, QueryType, Type, IoC, TI_DomainEntity\n| extend timestamp = DNS_TimeGenerated, HostCustomEntity = Computer, IPCustomEntity = ClientIP, URLCustomEntity = Url",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
@@ -71,13 +71,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "Name"
+                                "columnName": "URLCustomEntity"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.2"
+                "templateVersion": "1.3.2"
             }
         },
         {
@@ -290,7 +290,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "Name"
+                                "columnName": "URLCustomEntity"
                             }
                         ]
                     }
@@ -354,7 +354,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "Name"
+                                "columnName": "URLCustomEntity"
                             }
                         ]
                     }
@@ -427,7 +427,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "Name"
+                                "columnName": "URLCustomEntity"
                             }
                         ]
                     }
@@ -529,7 +529,7 @@
                 "description": "Identifies a match in DnsEvents from any IP IOC from TI",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true and ThreatType != \"benign\"\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(NetworkIP) or isnotempty(EmailSourceIpAddress) or isnotempty(NetworkDestinationIP) or isnotempty(NetworkSourceIP)\n// As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n// Taking the first non-empty value based on potential IOC match availability\n| extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    DnsEvents\n    | where TimeGenerated >= ago(dt_lookBack)\n    | where SubType =~ \"LookupQuery\" and isnotempty(IPAddresses)\n    | mv-expand SingleIP = split(IPAddresses, \", \") to typeof(string)\n    // renaming time column so it is clear the log this came from\n    | extend DNS_TimeGenerated = TimeGenerated\n)\non $left.TI_ipEntity == $right.SingleIP\n| where DNS_TimeGenerated < ExpirationDateTime\n| summarize DNS_TimeGenerated = arg_max(DNS_TimeGenerated , *) by IndicatorId, SingleIP\n| project DNS_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, DomainName, ExpirationDateTime, ConfidenceScore,\nTI_ipEntity, Computer, EventId, SubType, ClientIP, Name, IPAddresses, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress\n| extend timestamp = DNS_TimeGenerated, IPCustomEntity = ClientIP, HostCustomEntity = Computer, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = materialize(externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True));\nlet IP_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(NetworkIP) or isnotempty(EmailSourceIpAddress) or isnotempty(NetworkDestinationIP) or isnotempty(NetworkSourceIP)\n// As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n// Taking the first non-empty value based on potential IOC match availability\n| extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n//Exclude local addresses, using the ipv4_is_private operator\n| where ipv4_is_private(TI_ipEntity) == false and  TI_ipEntity !startswith \"fe80\" and TI_ipEntity !startswith \"::\" and TI_ipEntity !startswith \"127.\"\n),\n(IoCList\n| where IoC_Type =~ 'IP'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_ipEntity = IoC\n| project-away  IoC_Type\n)\n);\nIP_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    DnsEvents\n    | where TimeGenerated >= ago(dt_lookBack)\n    | where SubType =~ \"LookupQuery\" and isnotempty(IPAddresses)\n    | mv-expand SingleIP = split(IPAddresses, \", \") to typeof(string)\n    // renaming time column so it is clear the log this came from\n    | extend DNS_TimeGenerated = TimeGenerated\n)\non $left.TI_ipEntity == $right.SingleIP\n| where DNS_TimeGenerated < ExpirationDateTime\n| summarize DNS_TimeGenerated = arg_max(DNS_TimeGenerated , *) by IndicatorId, SingleIP, IoC\n| project DNS_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, DomainName, ExpirationDateTime, ConfidenceScore,\nTI_ipEntity, Computer, EventId, SubType, ClientIP, Name, IPAddresses, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress, Type\n| extend timestamp = DNS_TimeGenerated, IPCustomEntity = ClientIP, HostCustomEntity = Computer, URLCustomEntity = Url",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
@@ -582,13 +582,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "Name"
+                                "columnName": "URLCustomEntity"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.3"
+                "templateVersion": "1.3.3"
             }
         },
         {
@@ -728,7 +728,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "Name"
+                                "columnName": "URLCustomEntity"
                             }
                         ]
                     }
@@ -801,7 +801,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "URLCustomEntity"
                             }
                         ]
                     }
@@ -865,7 +865,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "Name"
+                                "columnName": "URLCustomEntity"
                             }
                         ]
                     }
