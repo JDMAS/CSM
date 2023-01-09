@@ -18,7 +18,7 @@
                 "description": "Malicious URL's serving malware, phishing, botnets and C2",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let IPBlock = externaldata(IP: string,values:dynamic) [@\"https://threatview.io/Downloads/IP-High-Confidence-Feed.txt\"]\r\nwith (format=\"txt\")\r\n| where IP !startswith \"#\"\r\n| project IP;\r\nIPBlock\r\n| join (DeviceNetworkEvents\r\n| where ActionType ==\"ConnectionSuccess\"\r\n) \r\non $left.IP == $right.RemoteIP\r\n| project TimeGenerated, IP, RemoteIP, DeviceName, RemoteUrl, InitiatingProcessFileName",
+                "query": "let IPBlock = externaldata(IP: string,values:dynamic) [@\"https://threatview.io/Downloads/IP-High-Confidence-Feed.txt\"]\r\nwith (format=\"txt\")\r\n| where IP !startswith \"#\"\r\n| project IP;\r\nIPBlock\r\n| join (DeviceNetworkEvents\r\n| where ActionType ==\"ConnectionSuccess\"\r\n) \r\non $left.IP == $right.RemoteIP\r\n| project TimeGenerated, IP, RemoteIP, DeviceName, RemoteUrl, InitiatingProcessFileName, InitiatingProcessAccountName",
                 "queryFrequency": "PT5H",
                 "queryPeriod": "PT5H",
                 "triggerOperator": "GreaterThan",
@@ -45,7 +45,53 @@
                 },
                 "alertDetailsOverride": null,
                 "customDetails": null,
-                "entityMappings": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "InitiatingProcessAccountName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "IP"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "URL",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Url",
+                                "columnName": "RemoteUrl"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "InitiatingProcessFileName"
+                            }
+                        ]
+                    }
+                ],
                 "sentinelEntitiesMappings": null
             }
         }
