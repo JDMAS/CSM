@@ -223,7 +223,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.1"
+                "templateVersion": "1.2.2"
             }
         },
         {
@@ -296,7 +296,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.1"
+                "templateVersion": "1.2.2"
             }
         },
         {
@@ -360,7 +360,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.2"
+                "templateVersion": "1.2.3"
             }
         },
         {
@@ -433,7 +433,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.1"
+                "templateVersion": "1.2.2"
             }
         },
         {
@@ -646,7 +646,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "ClientIP"
                             }
                         ]
                     },
@@ -655,13 +655,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "OfficeObjectId"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.2"
+                "templateVersion": "1.3.3"
             }
         },
         {
@@ -703,7 +703,9 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+                    "Description": "Description"
+                },
                 "entityMappings": [
                     {
                         "entityType": "Account",
@@ -724,17 +726,17 @@
                         ]
                     },
                     {
-                        "entityType": "URL",
+                        "entityType": "CloudApplication",
                         "fieldMappings": [
                             {
-                                "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "AppDisplayName"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.2"
+                "templateVersion": "1.2.3"
             }
         },
         {
@@ -807,7 +809,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.1"
+                "templateVersion": "1.2.3"
             }
         },
         {
