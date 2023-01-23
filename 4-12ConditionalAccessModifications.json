@@ -226,7 +226,8 @@
                             }
                         ]
                     }
-                ]
+                ],
+                "sentinelEntitiesMappings": null
             }
         },
         {
