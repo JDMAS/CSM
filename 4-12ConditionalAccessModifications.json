@@ -207,6 +207,29 @@
                                 "columnName": "modifiedBy"
                             }
                         ]
+                    },
+                    {
+                        "entityType": "AzureResource",
+                        "fieldMappings": [
+                            {
+                                "identifier": "ResourceId",
+                                "columnName": "policy"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Process",
+                        "fieldMappings": [
+                            {
+                                "identifier": "CommandLine",
+                                "columnName": "OperationName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null
+                            }
+                        ]
                     }
                 ]
             }
