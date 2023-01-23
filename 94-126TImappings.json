@@ -873,7 +873,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.2"
+                "templateVersion": "1.2.3"
             }
         },           
 		{	
@@ -959,7 +959,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.4.0"
+                "templateVersion": "1.4.1"
             }
         }
     ]
