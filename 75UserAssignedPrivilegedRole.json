@@ -67,6 +67,15 @@
                                 "columnName": "AccountCustomEntity"
                             }
                         ]
+                    },
+                    {
+                        "entityType": "AzureResource",
+                        "fieldMappings": [
+                            {
+                                "identifier": "ResourceId",
+                                "columnName": "RoleName"
+                            }
+                        ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
