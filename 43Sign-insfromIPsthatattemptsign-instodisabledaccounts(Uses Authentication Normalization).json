@@ -60,6 +60,15 @@
                                 "columnName": "IPCustomEntity"
                             }
                         ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "disabledAccountSet"
+                            }
+                        ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
