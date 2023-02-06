@@ -58,6 +58,15 @@
                                 "columnName": "UserPrincipalName"
                             }
                         ]
+                    },
+                    {
+                        "entityType": "CloudApplication",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "MfaDetail"
+                            }
+                        ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
