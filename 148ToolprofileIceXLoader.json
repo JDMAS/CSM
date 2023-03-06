@@ -1,0 +1,96 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','14800000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','14800000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-11-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Tool lprofile: IceXLoader')]",
+                "description": "https://security.microsoft.com/threatanalytics3/91a6be83-10f5-40cf-b33d-724e1eb888fc/analystreport?tid=f1e77b99-3f88-40a1-a3f9-7d087f375d7d",
+                "severity": "High",
+                "enabled": true,
+                "query": "DeviceProcessEvents | where TimeGenerated > ago(2d) | where FileName =~ \"powershell.exe\" | where ProcessCommandLine hasprefix \"-e\" | extend SplitString = split(ProcessCommandLine, \" \") | mvexpand SS = SplitString  | where SS matches regex \"^[A-Za-z0-9+/]{30,}[=]{0,2}$\" | extend base64_decoded = replace(@'\\0', '', make_string(base64_decode_toarray(tostring(SS)))) | where base64_decoded has_all(\"start-sleep\", \"set-mppreference\", \"exclusionpath\") | take 100 ",
+                "queryFrequency": "P1D",
+                "queryPeriod": "P1D",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "PrivilegeEscalation"
+                ],
+                "techniques": [
+                    "T1055"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "FolderPath"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "FileName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "AccountUpn"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}

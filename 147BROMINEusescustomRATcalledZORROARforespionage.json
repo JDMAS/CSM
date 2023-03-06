@@ -1,0 +1,95 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','14700000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','14700000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-11-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - BROMINE uses custom RAT called ZORROAR for espionage')]",
+                "description": "https://security.microsoft.com/threatanalytics3/6ed4e386-83d6-44e6-8c0a-eea1a3b18f19/analystreport?tid=f1e77b99-3f88-40a1-a3f9-7d087f375d7d",
+                "severity": "High",
+                "enabled": true,
+                "query": "DeviceNetworkEvents  | where RemoteUrl has \"/navigator.php\" and RemoteUrl has \"geotrust\"",
+                "queryFrequency": "PT4H",
+                "queryPeriod": "PT4H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Execution",
+                    "InitialAccess"
+                ],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "InitiatingProcessAccountUpn"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "InitiatingProcessFolderPath"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "URL",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Url",
+                                "columnName": "RemoteUrl"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}
