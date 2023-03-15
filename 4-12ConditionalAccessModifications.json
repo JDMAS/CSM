@@ -131,7 +131,7 @@
                 "suppressionEnabled": false,
                 "tactics": [],
                 "techniques": [],
-                "alertRuleTemplateName": "a779e2d5-9109-4f0a-a75e-f3d4f3c58560",
+                "alertRuleTemplateName": null,
                 "incidentConfiguration": {
                     "createIncident": true,
                     "groupingConfiguration": {
@@ -172,7 +172,6 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": null
             }
         },
         {
