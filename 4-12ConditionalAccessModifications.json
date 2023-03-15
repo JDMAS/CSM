@@ -131,7 +131,7 @@
                 "suppressionEnabled": false,
                 "tactics": [],
                 "techniques": [],
-                "alertRuleTemplateName": null,
+                "alertRuleTemplateName": "a779e2d5-9109-4f0a-a75e-f3d4f3c58560",
                 "incidentConfiguration": {
                     "createIncident": true,
                     "groupingConfiguration": {
@@ -148,19 +148,31 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+                    "Policy": "policy"
+                },
                 "entityMappings": [
                     {
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "AadUserId",
+                                "identifier": "Name",
                                 "columnName": "modifiedBy"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "RegistryValue",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "result"
                             }
                         ]
                     }
                 ],
-                "sentinelEntitiesMappings": null
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
             }
         },
         {
