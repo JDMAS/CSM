@@ -25,6 +25,7 @@
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "InitialAccess"
                 ],
@@ -48,13 +49,16 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+                    "AuthDetail": "MfaDetail",
+                    "Location": "LocationDetails"
+                },
                 "entityMappings": [
                     {
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
+                                "identifier": "AadUserId",
                                 "columnName": "UserPrincipalName"
                             }
                         ]
@@ -64,7 +68,16 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Name",
-                                "columnName": "MfaDetail"
+                                "columnName": "ResourceDisplayName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "Identity"
                             }
                         ]
                     }
