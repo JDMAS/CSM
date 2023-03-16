@@ -124,6 +124,15 @@
                                 "columnName": "AccountCustomEntity"
                             }
                         ]
+                    },
+                    {
+                        "entityType": "CloudApplication",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "AppDisplayName"
+                            }
+                        ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
