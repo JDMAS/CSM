@@ -180,7 +180,10 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+                    "FailedAttempts": "FailureCount",
+                    "SuccesfulAttempts": "SuccessCount"
+                },
                 "entityMappings": [
                     {
                         "entityType": "Account",
