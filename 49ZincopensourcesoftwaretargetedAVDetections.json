@@ -25,6 +25,7 @@
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
