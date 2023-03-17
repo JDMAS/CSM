@@ -25,6 +25,7 @@
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Exfiltration"
                 ],
@@ -48,7 +49,10 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+                    "Action": "Operation",
+                    "Object": "OfficeObjectId"
+                },
                 "entityMappings": [
                     {
                         "entityType": "Account",
@@ -64,7 +68,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "ClientIP"
                             }
                         ]
                     },
