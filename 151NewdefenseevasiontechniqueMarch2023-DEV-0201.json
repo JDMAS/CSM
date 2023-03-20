@@ -1,0 +1,83 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','15100000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','15100000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-11-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - New defense evasion technique, March 2023 - DEV-0201')]",
+                "description": "https://security.microsoft.com/threatanalytics3/07ba22fa-2c38-47b3-bbd4-2194213c1fda/analystreport?tid=f1e77b99-3f88-40a1-a3f9-7d087f375d7d",
+                "severity": "High",
+                "enabled": true,
+                "query": "let largeFileMin = 268435456; // 256mb\r\nlet smallFileMin = 102400; // 100kb\r\nlet smallFileMax = 67108864; // 64mb\r\nlet ratioMin = 75; // compression ratio, larger number indicates padding/ empty values more likely\r\n//\r\nlet start = now(-10d);\r\nlet end = now();\r\n//\r\nlet largeFileCreate=\r\nDeviceFileEvents\r\n| where Timestamp between (start..end)\r\n| where FileSize > largeFileMin\r\n| where InitiatingProcessCommandLine has_any ('.rar', '.zip')\r\n| where FolderPath has @'\\Users\\'  //'\r\n    and FolderPath has_any (@'\\Downloads\\', @'\\AppData\\') //'\r\n    and not (FolderPath has @'\\chocolatey\\') //'\r\n| extend fileExt = tolower(tostring(split(FileName,'.')[-1]))\r\n| where fileExt in~ ('exe', 'scr', 'com')\r\n    // fileExt needs to be monitored on continuous basis for emerging threats\r\n| summarize FileUnpackTime=min(Timestamp) by DeviceId, UnpackSize=FileSize, \r\n    FolderPath, FileName, fileExt, InitiatingProcessCommandLine,\r\n    InitiatingProcessAccountUpn, InitiatingProcessAccountSid\r\n;\r\nlet device_FileName_set =\r\nlargeFileCreate\r\n| distinct DeviceId, FileName\r\n;\r\nlet device_set = \r\nlargeFileCreate\r\n| distinct DeviceId\r\n| where isnotempty(DeviceId)\r\n;\r\nlet pullFromCmd = \r\nlargeFileCreate\r\n| distinct InitiatingProcessCommandLine\r\n| extend InitiatingProcessCommandLine = tolower(InitiatingProcessCommandLine)\r\n| extend targetFile = extract(@'([\\\\]?).*(rar|zip)',0,InitiatingProcessCommandLine)\r\n| extend targetFile = trim_start(@'.*\\\\',targetFile) //'\r\n| where isnotempty(targetFile)\r\n| distinct targetFile\r\n;\r\nlet largeFileParent = \r\nDeviceFileEvents\r\n| where Timestamp between (start..end)\r\n| where DeviceId in (device_set)\r\n| where FileName in~ (pullFromCmd)\r\n| join kind=inner device_FileName_set on $left.DeviceId==$right.DeviceId, $left.InitiatingProcessFileName==$right.FileName\r\n| project-away DeviceId1, FileName1\r\n| where FileSize between (smallFileMin..smallFileMax)\r\n| summarize DownloadTime=min(Timestamp), FileOriginUrl=max(FileOriginUrl), \r\n    FileOriginReferrerUrl=max(FileOriginReferrerUrl) by DeviceId, \r\n    DownloadFileSize=FileSize, InitiatingProcessAccountUpn, InitiatingProcessAccountSid\r\n;\r\nlet screenShotTaken = \r\nDeviceEvents\r\n| where Timestamp between (start..end)\r\n| where DeviceId in (device_set)\r\n| where ActionType =~ \"ScreenshotTaken\"\r\n| join kind=inner device_FileName_set on $left.DeviceId==$right.DeviceId, $left.InitiatingProcessFileName==$right.FileName\r\n| project-away DeviceId1, FileName1\r\n| summarize ScreenShotTime=min(Timestamp) by DeviceId, \r\n    InitiatingProcessAccountUpn, InitiatingProcessAccountSid\r\n;\r\nlet unprotectDPAPI = \r\nDeviceEvents\r\n| where Timestamp between (start..end)\r\n| where DeviceId in (device_set)\r\n| where ActionType =~ \"DpapiAccessed\"\r\n| join kind=inner device_FileName_set on $left.DeviceId==$right.DeviceId, $left.InitiatingProcessFileName==$right.FileName\r\n| project-away DeviceId1, FileName1\r\n| summarize UnprotectTime=min(Timestamp) by DeviceId, \r\n    InitiatingProcessAccountUpn, InitiatingProcessAccountSid\r\n;\r\nlet fileOpen = \r\nDeviceEvents\r\n| where Timestamp between (start..end)\r\n| where DeviceId in (device_set)\r\n| where ActionType =~ \"SensitiveFileRead\"\r\n| join kind=inner device_FileName_set on $left.DeviceId==$right.DeviceId, $left.InitiatingProcessFileName==$right.FileName\r\n| project-away DeviceId1, FileName1\r\n| summarize FileOpenTime=min(Timestamp), FileTargetSet=array_sort_asc(make_set(FileName))\r\n    by DeviceId, InitiatingProcessAccountUpn, InitiatingProcessAccountSid\r\n;\r\nlet smallParentFull = \r\nlargeFileParent\r\n| join kind=inner largeFileCreate on DeviceId\r\n| project-away DeviceId1, InitiatingProcessAccountSid1, InitiatingProcessAccountUpn1\r\n| extend ratioPacked = UnpackSize/DownloadFileSize\r\n| where ratioPacked >= ratioMin\r\n| extend DownloadFileSize=format_bytes(DownloadFileSize,1),\r\n    UnpackSize=format_bytes(UnpackSize,1)\r\n;\r\nsmallParentFull\r\n| join kind=leftouter screenShotTaken on DeviceId\r\n| project-away DeviceId1, InitiatingProcessAccountSid1, InitiatingProcessAccountUpn1\r\n| join kind=leftouter unprotectDPAPI on DeviceId\r\n| project-away DeviceId1, InitiatingProcessAccountSid1, InitiatingProcessAccountUpn1\r\n| join kind=leftouter fileOpen on DeviceId\r\n| project-away DeviceId1, InitiatingProcessAccountSid1, InitiatingProcessAccountUpn1\r\n| extend has_ScreenShot=iff(isnotnull(ScreenShotTime),true,bool(null)),\r\n    has_UnprotectDPAPI=iff(isnotnull(UnprotectTime),true,bool(null)),\r\n    has_FileOpen=iff(isnotnull(FileOpenTime),true,bool(null))\r\n| project-reorder DownloadTime, FileUnpackTime, ScreenShotTime, FileOpenTime, \r\n    UnprotectTime, has_*, DeviceId, ratioPacked, DownloadFileSize, UnpackSize",
+                "queryFrequency": "PT4H",
+                "queryPeriod": "PT4H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "FileName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "URL",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Url",
+                                "columnName": "FileOriginUrl"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "AzureID",
+                                "columnName": "DeviceId"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}
