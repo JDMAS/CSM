@@ -48,7 +48,10 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+				"Folders": "Folders",
+				"Score": "Score"
+		    },
                 "entityMappings": [
                     {
                         "entityType": "Account",
