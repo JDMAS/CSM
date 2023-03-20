@@ -50,7 +50,8 @@
                     "alertDynamicProperties": []
                 },
                 "customDetails": {
-                    "Priority": "Score"
+                    "Priority": "Score",
+                    "AnomalyReason": "AnomalyReasons"
                 },
                 "entityMappings": [
                     {
@@ -58,7 +59,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Name",
-                                "columnName": "UserPrincipalName"
+                                "columnName": "UserName"
                             }
                         ]
                     },
