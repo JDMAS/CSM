@@ -51,10 +51,10 @@
                 "customDetails": null,
                 "entityMappings": [
                     {
-                        "entityType": "Account",
+                        "entityType": "Process",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
+                                "identifier": "CommandLine",
                                 "columnName": "Initiator"
                             }
                         ]
