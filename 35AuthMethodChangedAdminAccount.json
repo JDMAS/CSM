@@ -48,7 +48,9 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+                    "Actions": "Actions"
+		    },
                 "entityMappings": [
                     {
                         "entityType": "Account",
