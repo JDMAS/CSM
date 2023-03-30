@@ -47,7 +47,9 @@
                 },
                 "alertDetailsOverride": null,
                 "customDetails": {
-                    "City": "SourceIPLocation"
+                    "City": "SourceIPLocation",
+			  "Activity": "ActivityType",
+			  "Consequence": "ActionType"
                 },
                 "entityMappings": [
                     {
