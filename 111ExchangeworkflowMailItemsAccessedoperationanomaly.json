@@ -50,7 +50,8 @@
                 "alertDetailsOverride": null,
                 "customDetails": {
 				"Folders": "Folders",
-				"Score": "Score"
+				"Score": "score",
+				"Usertype": "UserType"
 		    },
                 "entityMappings": [
                     {
