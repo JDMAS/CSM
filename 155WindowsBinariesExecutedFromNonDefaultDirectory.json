@@ -8,28 +8,31 @@
     },
     "resources": [
         {
-            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','67000000-0000-0000-0000-000000000000')]",
-            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','67000000-0000-0000-0000-000000000000')]",
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','15500000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','15500000-0000-0000-0000-000000000000')]",
             "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
             "kind": "Scheduled",
-            "apiVersion": "2022-09-01-preview",
+            "apiVersion": "2022-11-01-preview",
             "properties": {
-                "displayName": "[concat(parameters('workspace'),' - Anomalous login activity originated from Botnet, Tor proxy or C2')]",
-                "description": "Shows login activity (successful or failed) originated from botnet, Tor proxy or C2, with at least one 'True' activity insight\nContact user or IT responsible person for company",
+                "displayName": "[concat(parameters('workspace'),' - Windows Binaries Executed from Non-Default Directory')]",
+                "description": "The query detects Windows binaries, that can be executed from a non-default directory (e.g. C:\\Windows\\, C:\\Windows\\System32 etc.). \nRef: https://lolbas-project.github.io/",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "BehaviorAnalytics\r\n  | where ActivityType == 'LogOn'\r\n  | where DevicesInsights.ThreatIntelIndicatorType == 'Botnet'\r\n    or DevicesInsights.ThreatIntelIndicatorType == 'C2'\r\n    or DevicesInsights.ThreatIntelIndicatorType == 'Proxy'\r\n  | where ActivityInsights contains 'True'\r\n  | extend AadUserId = UsersInsights.AccountObjectID",
+                "query": "let procList = externaldata(Process:string) [@\"https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Microsoft_Lolbas_Execution_Binaries.csv\"] with (format=\"csv\", ignoreFirstRecord=True);\nSecurityEvent\n| where EventID == 4688 and Process has_any (procList) and not (NewProcessName has (\"C:\\\\Windows\\\\\"))\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by EventID, Computer, SubjectUserName, NewProcessName, Process, CommandLine",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
-                    "CredentialAccess"
+                    "Execution"
                 ],
-                "techniques": [],
-                "alertRuleTemplateName": null,
+                "techniques": [
+                    "T1059"
+                ],
+                "alertRuleTemplateName": "15049017-527f-4d3b-b011-b0e99e68ef45",
                 "incidentConfiguration": {
                     "createIncident": true,
                     "groupingConfiguration": {
@@ -43,30 +46,17 @@
                     }
                 },
                 "eventGroupingSettings": {
-                    "aggregationKind": "AlertPerResult"
+                    "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": {
-                    "City": "SourceIPLocation",
-			  "Activity": "ActivityType",
-			  "Consequence": "ActionType"
-                },
+                "customDetails": null,
                 "entityMappings": [
                     {
                         "entityType": "Account",
                         "fieldMappings": [
                             {
                                 "identifier": "FullName",
-                                "columnName": "UserPrincipalName"
-                            }
-                        ]
-                    },
-                    {
-                        "entityType": "IP",
-                        "fieldMappings": [
-                            {
-                                "identifier": "Address",
-                                "columnName": "SourceIPAddress"
+                                "columnName": "SubjectUserName"
                             }
                         ]
                     },
@@ -74,13 +64,23 @@
                         "entityType": "Host",
                         "fieldMappings": [
                             {
-                                "identifier": "HostName",
-                                "columnName": "SourceDevice"
+                                "identifier": "FullName",
+                                "columnName": "Computer"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Process",
+                        "fieldMappings": [
+                            {
+                                "identifier": "CommandLine",
+                                "columnName": "CommandLine"
                             }
                         ]
                     }
                 ],
-                "sentinelEntitiesMappings": null
+                "sentinelEntitiesMappings": null,
+                "templateVersion": "1.0.1"
             }
         }
     ]
