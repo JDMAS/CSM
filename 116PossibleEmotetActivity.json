@@ -17,7 +17,7 @@
                 "displayName": "[concat(parameters('workspace'),' - Possible Emotet activity')]",
                 "description": "https://security.microsoft.com/threatanalytics3/1129e2b4-9028-4072-9408-04459d670cd8/analystreport?tid=f1e77b99-3f88-40a1-a3f9-7d087f375d7d",
                 "severity": "Low",
-                "enabled": true,
+                "enabled": false,
                                 "query": "EmailEvents \n// Identify inbound emails with a reply or forward \n| where Subject has_any('RE:', 'FW:', 'FWD:', 'AW:', 'WG:', 'TR:') and EmailDirection == \"Inbound\"   \n| where DeliveryAction != \"Blocked\"\n// Join when emails have XLS or ZIP file attachments \n| join kind=inner (EmailAttachmentInfo     \n| where FileName has_any('.xls', '.zip'))\n    on NetworkMessageId \n| project Subject, FileName, RecipientEmailAddress, DeliveryAction, SenderDisplayName, SenderFromAddress, SenderIPv4",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
