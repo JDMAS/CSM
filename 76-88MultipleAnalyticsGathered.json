@@ -572,7 +572,7 @@
                         ]
                     },
                     {
-                        "entityType": "Cloud application",
+                        "entityType": "CloudApplication",
                         "fieldMappings": [
                             {
                                 "identifier": "Name",
