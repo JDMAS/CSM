@@ -557,7 +557,10 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+				"AppAuthDetails": "keyType",
+				"keyDisplayName": "keyDisplayName"
+		    },
                 "entityMappings": [
                     {
                         "entityType": "Account",
@@ -565,6 +568,15 @@
                             {
                                 "identifier": "FullName",
                                 "columnName": "AccountCustomEntity"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Cloud application",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "targetDisplayName"
                             }
                         ]
                     },
