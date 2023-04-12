@@ -50,7 +50,7 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "AadUserId",
+                                "identifier": "Name",
                                 "columnName": "modifiedBy"
                             }
                         ]
