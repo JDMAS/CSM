@@ -18,7 +18,7 @@
                 "description": "The query detects Windows binaries, that can be executed from a non-default directory (e.g. C:\\Windows\\, C:\\Windows\\System32 etc.). \nRef: https://lolbas-project.github.io/",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let procList = externaldata(Process:string) [@\"https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Microsoft_Lolbas_Execution_Binaries.csv\"] with (format=\"csv\", ignoreFirstRecord=True);\nSecurityEvent\n| where EventID == 4688 and Process has_any (procList) and not (NewProcessName has (\"C:\\\\Windows\\\\\"))\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by EventID, Computer, SubjectUserName, NewProcessName, Process, CommandLine",
+                "query": "let procList = externaldata(Process:string) [@\"https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Microsoft_Lolbas_Execution_Binaries.csv\"] with (format=\"csv\", ignoreFirstRecord=True);\nSecurityEvent\n| where EventID == 4688 and Process has_any (procList) and not (NewProcessName has (\"C:\\\\Windows\\\\\"))\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by EventID, Computer, SubjectUserName, NewProcessName, Process, CommandLine, Account",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
                 "triggerOperator": "GreaterThan",
@@ -56,7 +56,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "FullName",
-                                "columnName": "SubjectUserName"
+                                "columnName": "Account"
                             }
                         ]
                     },
@@ -74,7 +74,16 @@
                         "fieldMappings": [
                             {
                                 "identifier": "CommandLine",
-                                "columnName": "CommandLine"
+                                "columnName": "NewProcessName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "Process"
                             }
                         ]
                     }
