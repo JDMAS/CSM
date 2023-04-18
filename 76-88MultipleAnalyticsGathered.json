@@ -206,7 +206,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "IPAddress"
                             }
                         ]
                     },
