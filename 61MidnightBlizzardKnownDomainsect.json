@@ -33,7 +33,7 @@
                     "T1102",
                     "T1204"
                 ],
-                "alertRuleTemplateName": "677da133-e487-4108-a150-5b926591a92b",
+                "alertRuleTemplateName": null,
                 "incidentConfiguration": {
                     "createIncident": true,
                     "groupingConfiguration": {
