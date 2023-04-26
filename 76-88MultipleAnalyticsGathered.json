@@ -18,13 +18,14 @@
                 "description": "Identifies accounts that were created or deleted by a defined list of non-approved user principal names. Add to this list before running the query for accurate results.\nRef : https://docs.microsoft.com/azure/active-directory/fundamentals/security-operations-user-accounts",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "// Add non-approved user principal names to the list below to search for their account creation/deletion activity\n// ex: dynamic([\"UPN1\", \"upn123\"])\nlet nonapproved_users = dynamic([]);\nAuditLogs\n| where OperationName == \"Add user\" or OperationName == \"Delete user\"\n| where Result == \"success\"\n| extend InitiatingUser = tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)\n| where InitiatingUser has_any (nonapproved_users)\n| project-reorder TimeGenerated, ResourceId, OperationName, InitiatingUser, TargetResources\n| extend AccountCustomEntity = InitiatingUser, IPCustomEntity = tostring(parse_json(tostring(InitiatedBy.user)).ipAddress)",
+                "query": "// Add non-approved user principal names to the list below to search for their account creation/deletion activity\n// ex: dynamic([\"UPN1\", \"upn123\"])\nlet nonapproved_users = dynamic([]);\nAuditLogs\n| where OperationName =~ \"Add user\" or OperationName =~ \"Delete user\"\n| where Result =~ \"success\"\n| extend InitiatingUser = tostring(InitiatedBy.user.userPrincipalName)\n| where InitiatingUser has_any (nonapproved_users)\n| project-reorder TimeGenerated, ResourceId, OperationName, InitiatingUser, TargetResources\n| extend InitiatedUserIpAddress = tostring(InitiatedBy.user.ipAddress)\n| extend Name = tostring(split(InitiatingUser,'@',0)[0]), UPNSuffix = tostring(split(InitiatingUser,'@',1)[0])",
                 "queryFrequency": "P1D",
                 "queryPeriod": "P1D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "InitialAccess"
                 ],
@@ -54,8 +55,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -64,13 +69,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "InitiatedUserIpAddress"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.1"
+                "templateVersion": "1.0.2"
             }
         },
         {
@@ -156,7 +161,7 @@
                 "description": "Identifies evidence of brute force activity against a Windows 365 Cloud PC by highlighting multiple authentication failures and by a successful authentication within a given time window.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let failureCountThreshold = 5;\nlet successCountThreshold = 1;\nlet authenticationWindow = 20m;\nSigninLogs\n| extend OS = DeviceDetail.operatingSystem, Browser = DeviceDetail.browser\n| extend StatusCode = tostring(Status.errorCode), StatusDetails = tostring(Status.additionalDetails)\n| extend State = tostring(LocationDetails.state), City = tostring(LocationDetails.city)\n| where AppDisplayName =~ \"Windows Sign In\"\n// Split out failure versus non-failure types\n| extend FailureOrSuccess = iff(ResultType in (\"0\", \"50125\", \"50140\", \"70043\", \"70044\"), \"Success\", \"Failure\")\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated), IPAddress = makeset(IPAddress), makeset(OS), makeset(Browser), makeset(City), \nmakeset(ResultType), FailureCount = countif(FailureOrSuccess==\"Failure\"), SuccessCount = countif(FailureOrSuccess==\"Success\") \nby bin(TimeGenerated, authenticationWindow), UserDisplayName, UserPrincipalName, AppDisplayName\n| where FailureCount >= failureCountThreshold and SuccessCount >= successCountThreshold\n| mvexpand IPAddress\n| extend IPAddress = tostring(IPAddress)\n| extend timestamp = StartTime, AccountCustomEntity = UserPrincipalName, IPCustomEntity = IPAddress\n| join IntuneDevices on $left.UserPrincipalName == $right.UPN",
+                "query": "let authenticationWindow = 20m;\nlet sensitivity = 2.5;\nSigninLogs\n| where AppDisplayName =~ \"Windows Sign In\"\n| extend FailureOrSuccess = iff(ResultType in (\"0\", \"50125\", \"50140\", \"70043\", \"70044\"), \"Success\", \"Failure\")\n| summarize FailureCount = countif(FailureOrSuccess==\"Failure\"), SuccessCount = countif(FailureOrSuccess==\"Success\"), IPAddresses = make_set(IPAddress,1000)\n                          by bin(TimeGenerated, authenticationWindow), UserDisplayName, UserPrincipalName\n| extend FailureSuccessDiff = FailureCount - SuccessCount\n| where FailureSuccessDiff > 0\n| summarize Diff = make_list(FailureSuccessDiff, 10000), TimeStamp = make_list(TimeGenerated, 10000) by UserDisplayName, UserPrincipalName//, tostring(IPAddresses)\n| extend (Anomalies, Score, Baseline) = series_decompose_anomalies(Diff, sensitivity, -1, 'linefit')  \n| mv-expand Diff to typeof(double), TimeStamp to typeof(datetime), Anomalies to typeof(double), Score to typeof(double), Baseline to typeof(long)\n| where Anomalies > 0\n| summarize by UserDisplayName, UserPrincipalName\n| join kind=leftouter (\n      SigninLogs\n      | where AppDisplayName =~ \"Windows Sign In\"\n      | extend OS = DeviceDetail.operatingSystem, Browser = DeviceDetail.browser\n      | extend StatusCode = tostring(Status.errorCode), StatusDetails = tostring(Status.additionalDetails)\n      | extend State = tostring(LocationDetails.state), City = tostring(LocationDetails.city)\n      | summarize StartTime = min(TimeGenerated), \n                  EndTime = max(TimeGenerated), \n                  IPAddress = make_set(IPAddress,100), \n                  OS = make_set(OS,20), \n                  Browser = make_set(Browser,20), \n                  City = make_set(City,100), \n                  ResultType = make_set(ResultType,100)\n              by UserDisplayName, UserPrincipalName\n  ) on UserDisplayName, UserPrincipalName\n| extend IPAddressFirst = IPAddress[0]\n| extend timestamp = StartTime, Name = tostring(split(UserPrincipalName,'@',0)[0]), UPNSuffix = tostring(split(UserPrincipalName,'@',1)[0])",
                 "queryFrequency": "P1D",
                 "queryPeriod": "P1D",
                 "triggerOperator": "GreaterThan",
@@ -187,17 +192,18 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": {
-                    "FailedAttempts": "FailureCount",
-                    "SuccesfulAttempts": "SuccessCount"
-                },
+                "customDetails": null,
                 "entityMappings": [
                     {
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -206,22 +212,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPAddress"
-                            }
-                        ]
-                    },
-                    {
-                        "entityType": "Host",
-                        "fieldMappings": [
-                            {
-                                "identifier": "HostName",
-                                "columnName": "DeviceName"
+                                "columnName": "IPAddressFirst"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.1"
+                "templateVersion": "2.0.0"
             }
         },
         {
@@ -312,13 +309,14 @@
                 "description": "By default guests have capability to invite more external guest users, guests also can do suspicious Azure AD enumeration. This detection look at guests\nusers, who have been invited or have invited recently, who also are logging via various PowerShell CLI.\nRef : 'https://danielchronlund.com/2021/11/18/scary-azure-ad-tenant-enumeration-using-regular-b2b-guest-accounts/",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let queryfrequency = 1h;\nlet queryperiod = 1d;\nAuditLogs\n| where TimeGenerated > ago(queryperiod)\n| where OperationName in (\"Invite external user\", \"Bulk invite users - started (bulk)\", \"Invite external user with reset invitation status\")\n| extend InitiatedBy = iff(isnotempty(InitiatedBy.user.userPrincipalName), InitiatedBy.user.userPrincipalName, InitiatedBy.app.displayName)\n// Uncomment the following line to filter events where the inviting user was a guest user\n//| where InitiatedBy has_any (\"live.com#\", \"#EXT#\")\n| extend InvitedUser = TargetResources[0].userPrincipalName\n| mv-expand UserToCompare = pack_array(InitiatedBy, InvitedUser) to typeof(string)\n| where UserToCompare has_any (\"live.com#\", \"#EXT#\")\n| extend\n    parsedUser = replace_string(tolower(iff(UserToCompare startswith \"live.com#\", tostring(split(UserToCompare, \"#\")[1]), tostring(split(UserToCompare, \"#EXT#\")[0]))), \"@\", \"_\"),\n    InvitationTime = TimeGenerated\n| join (\n    (union isfuzzy=true SigninLogs, AADNonInteractiveUserSignInLogs)\n    | where TimeGenerated > ago(queryfrequency)\n    | where UserType != \"Member\"\n    | where AppId has_any                       // This web may contain a list of these apps: https://msshells.net/\n        (\"1b730954-1685-4b74-9bfd-dac224a7b894\",// Azure Active Directory PowerShell\n         \"04b07795-8ddb-461a-bbee-02f9e1bf7b46\",// Microsoft Azure CLI\n         \"1950a258-227b-4e31-a9cf-717495945fc2\",// Microsoft Azure PowerShell\n         \"a0c73c16-a7e3-4564-9a95-2bdf47383716\",// Microsoft Exchange Online Remote PowerShell\n         \"fb78d390-0c51-40cd-8e17-fdbfab77341b\",// Microsoft Exchange REST API Based Powershell\n         \"d1ddf0e4-d672-4dae-b554-9d5bdfd93547\",// Microsoft Intune PowerShell\n         \"9bc3ab49-b65d-410a-85ad-de819febfddc\",// Microsoft SharePoint Online Management Shell\n         \"12128f48-ec9e-42f0-b203-ea49fb6af367\",// MS Teams Powershell Cmdlets\n         \"23d8f6bd-1eb0-4cc2-a08c-7bf525c67bcd\",// Power BI PowerShell\n         \"31359c7f-bd7e-475c-86db-fdb8c937548e\",// PnP Management Shell\n         \"90f610bf-206d-4950-b61d-37fa6fd1b224\",// Aadrm Admin Powershell\n         \"14d82eec-204b-4c2f-b7e8-296a70dab67e\" // Microsoft Graph PowerShell\n        )\n    | summarize arg_min(TimeGenerated, *) by UserPrincipalName\n    | extend\n        parsedUser = replace_string(UserPrincipalName, \"@\", \"_\"),\n        SigninTime = TimeGenerated\n    )\n    on parsedUser\n| project InvitationTime, InitiatedBy, OperationName, InvitedUser, SigninTime, SigninCategory = Category1, SigninUserPrincipalName = UserPrincipalName, IPAddress, AppDisplayName, ResourceDisplayName, UserAgent, InvitationAdditionalDetails = AdditionalDetails, InvitationTargetResources = TargetResources",
+                "query": "let queryfrequency = 1h;\nlet queryperiod = 1d;\nAuditLogs\n| where TimeGenerated > ago(queryperiod)\n| where OperationName in (\"Invite external user\", \"Bulk invite users - started (bulk)\", \"Invite external user with reset invitation status\")\n| extend InitiatedBy = iff(isnotempty(InitiatedBy.user.userPrincipalName), InitiatedBy.user.userPrincipalName, InitiatedBy.app.displayName)\n// Uncomment the following line to filter events where the inviting user was a guest user\n//| where InitiatedBy has_any (\"live.com#\", \"#EXT#\")\n| mv-apply TargetResource = TargetResources on \n  (\n      where TargetResource.type =~ \"User\"\n      | extend InvitedUser = tostring(TargetResource.userPrincipalName)\n  )\n| mv-expand UserToCompare = pack_array(InitiatedBy, InvitedUser) to typeof(string)\n| where UserToCompare has_any (\"live.com#\", \"#EXT#\")\n| extend\n    parsedUser = replace_string(tolower(iff(UserToCompare startswith \"live.com#\", tostring(split(UserToCompare, \"#\")[1]), tostring(split(UserToCompare, \"#EXT#\")[0]))), \"@\", \"_\"),\n    InvitationTime = TimeGenerated\n| join (\n    (union isfuzzy=true SigninLogs, AADNonInteractiveUserSignInLogs)\n    | where TimeGenerated > ago(queryfrequency)\n    | where UserType != \"Member\"\n    | where AppId has_any                       // This web may contain a list of these apps: https://msshells.net/\n        (\"1b730954-1685-4b74-9bfd-dac224a7b894\",// Azure Active Directory PowerShell\n         \"04b07795-8ddb-461a-bbee-02f9e1bf7b46\",// Microsoft Azure CLI\n         \"1950a258-227b-4e31-a9cf-717495945fc2\",// Microsoft Azure PowerShell\n         \"a0c73c16-a7e3-4564-9a95-2bdf47383716\",// Microsoft Exchange Online Remote PowerShell\n         \"fb78d390-0c51-40cd-8e17-fdbfab77341b\",// Microsoft Exchange REST API Based Powershell\n         \"d1ddf0e4-d672-4dae-b554-9d5bdfd93547\",// Microsoft Intune PowerShell\n         \"9bc3ab49-b65d-410a-85ad-de819febfddc\",// Microsoft SharePoint Online Management Shell\n         \"12128f48-ec9e-42f0-b203-ea49fb6af367\",// MS Teams Powershell Cmdlets\n         \"23d8f6bd-1eb0-4cc2-a08c-7bf525c67bcd\",// Power BI PowerShell\n         \"31359c7f-bd7e-475c-86db-fdb8c937548e\",// PnP Management Shell\n         \"90f610bf-206d-4950-b61d-37fa6fd1b224\",// Aadrm Admin Powershell\n         \"14d82eec-204b-4c2f-b7e8-296a70dab67e\" // Microsoft Graph PowerShell\n        )\n    | summarize arg_min(TimeGenerated, *) by UserPrincipalName\n    | extend\n        parsedUser = replace_string(UserPrincipalName, \"@\", \"_\"),\n        SigninTime = TimeGenerated\n    )\n    on parsedUser\n| project InvitationTime, InitiatedBy, OperationName, InvitedUser, SigninTime, SigninCategory = Category1, SigninUserPrincipalName = UserPrincipalName, IPAddress, AppDisplayName, ResourceDisplayName, UserAgent, InvitationAdditionalDetails = AdditionalDetails, InvitationTargetResources = TargetResources\n| extend InvitedUserName = tostring(split(InvitedUser,'@',0)[0]), InvitedUserUPNSuffix = tostring(split(InvitedUser,'@',1)[0]), \n         InitiatedByName = tostring(split(InitiatedBy,'@',0)[0]), InitiatedByUPNSuffix = tostring(split(InitiatedBy,'@',1)[0])",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "P1D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "InitialAccess",
                     "Persistence",
@@ -352,8 +350,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "InvitedUser"
+                                "identifier": "Name",
+                                "columnName": "InvitedUserName"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "InvitedUserUPNSuffix"
                             }
                         ]
                     },
@@ -361,8 +363,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "InitiatedBy"
+                                "identifier": "Name",
+                                "columnName": "InitiatedByName"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "InitiatedByUPNSuffix"
                             }
                         ]
                     },
@@ -377,7 +383,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.6"
+                "templateVersion": "1.0.7"
             }
         },
         {
@@ -527,13 +533,14 @@
                 "description": "This will alert when an admin or app owner account adds a new credential to an Application or Service Principal where a verify KeyCredential was already present for the app.\nIf a threat actor obtains access to an account with sufficient privileges and adds the alternate authentication material triggering this event, the threat actor can now authenticate as the Application or Service Principal using this credential.\nAdditional information on OAuth Credential Grants can be found in RFC 6749 Section 4.4 or https://docs.microsoft.com/azure/active-directory/develop/v2-oauth2-client-creds-grant-flow\nFor further information on AuditLogs please see https://docs.microsoft.com/azure/active-directory/reports-monitoring/reference-audit-activities.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "AuditLogs\n| where OperationName has_any (\"Add service principal\", \"Certificates and secrets management\") // captures \"Add service principal\", \"Add service principal credentials\", and \"Update application - Certificates and secrets management\" events\n| where Result =~ \"success\"\n| mv-expand target = TargetResources\n| where tostring(InitiatedBy.user.userPrincipalName) has \"@\" or tostring(InitiatedBy.app.displayName) has \"@\"\n| extend targetDisplayName = tostring(TargetResources[0].displayName)\n| extend targetId = tostring(TargetResources[0].id)\n| extend targetType = tostring(TargetResources[0].type)\n| extend keyEvents = TargetResources[0].modifiedProperties\n| mv-expand keyEvents\n| where keyEvents.displayName =~ \"KeyDescription\"\n| extend new_value_set = parse_json(tostring(keyEvents.newValue))\n| extend old_value_set = parse_json(tostring(keyEvents.oldValue))\n| where old_value_set != \"[]\"\n| extend diff = set_difference(new_value_set, old_value_set)\n| where isnotempty(diff)\n| parse diff with * \"KeyIdentifier=\" keyIdentifier:string \",KeyType=\" keyType:string \",KeyUsage=\" keyUsage:string \",DisplayName=\" keyDisplayName:string \"]\" *\n| where keyUsage == \"Verify\"  or keyUsage == \"\"\n| extend UserAgent = iff(AdditionalDetails[0].key == \"User-Agent\",tostring(AdditionalDetails[0].value),\"\")\n| extend InitiatingUserOrApp = iff(isnotempty(InitiatedBy.user.userPrincipalName),tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName))\n| extend InitiatingIpAddress = iff(isnotempty(InitiatedBy.user.ipAddress), tostring(InitiatedBy.user.ipAddress), tostring(InitiatedBy.app.ipAddress))\n// The below line is currently commented out but Microsoft Sentinel users can modify this query to show only Application or only Service Principal events in their environment\n//| where targetType =~ \"Application\" // or targetType =~ \"ServicePrincipal\"\n| project-away diff, new_value_set, old_value_set\n| project-reorder TimeGenerated, OperationName, InitiatingUserOrApp, InitiatingIpAddress, UserAgent, targetDisplayName, targetId, targetType, keyDisplayName, keyType, keyUsage, keyIdentifier, CorrelationId, TenantId\n| extend timestamp = TimeGenerated, AccountCustomEntity = InitiatingUserOrApp, IPCustomEntity = InitiatingIpAddress",
+                "query": "AuditLogs\n| where OperationName has_any (\"Add service principal\", \"Certificates and secrets management\") // captures \"Add service principal\", \"Add service principal credentials\", and \"Update application - Certificates and secrets management\" events\n| where Result =~ \"success\"\n| where tostring(InitiatedBy.user.userPrincipalName) has \"@\" or tostring(InitiatedBy.app.displayName) has \"@\"\n| mv-apply TargetResource = TargetResources on \n  (\n      where TargetResource.type =~ \"Application\"\n      | extend targetDisplayName = tostring(TargetResource.displayName),\n               targetId = tostring(TargetResource.id),\n               targetType = tostring(TargetResource.type),\n               keyEvents = TargetResource.modifiedProperties\n  )\n| mv-apply Property = keyEvents on \n  (\n      where Property.displayName =~ \"KeyDescription\"\n      | extend new_value_set = parse_json(tostring(Property.newValue)),\n               old_value_set = parse_json(tostring(Property.oldValue))\n  )\n| where old_value_set != \"[]\"\n| extend diff = set_difference(new_value_set, old_value_set)\n| where isnotempty(diff)\n| parse diff with * \"KeyIdentifier=\" keyIdentifier:string \",KeyType=\" keyType:string \",KeyUsage=\" keyUsage:string \",DisplayName=\" keyDisplayName:string \"]\" *\n| where keyUsage =~ \"Verify\"\n| mv-apply AdditionalDetail = AdditionalDetails on \n  (\n      where AdditionalDetail.key =~ \"User-Agent\"\n      | extend UserAgent = tostring(AdditionalDetail.value)\n  )\n| extend InitiatingUserOrApp = iff(isnotempty(InitiatedBy.user.userPrincipalName),tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName))\n| extend InitiatingIpAddress = iff(isnotempty(InitiatedBy.user.ipAddress), tostring(InitiatedBy.user.ipAddress), tostring(InitiatedBy.app.ipAddress))\n// The below line is currently commented out but Microsoft Sentinel users can modify this query to show only Application or only Service Principal events in their environment\n//| where targetType =~ \"Application\" // or targetType =~ \"ServicePrincipal\"\n| project-away diff, new_value_set, old_value_set\n| project-reorder TimeGenerated, OperationName, InitiatingUserOrApp, InitiatingIpAddress, UserAgent, targetDisplayName, targetId, targetType, keyDisplayName, keyType, keyUsage, keyIdentifier, CorrelationId, TenantId\n| extend timestamp = TimeGenerated, Name = tostring(split(InitiatingUserOrApp,'@',0)[0]), UPNSuffix = tostring(split(InitiatingUserOrApp,'@',1)[0])",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "DefenseEvasion"
                 ],
@@ -557,26 +564,18 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": {
-				"AppAuthDetails": "keyType",
-				"keyDisplayName": "keyDisplayName"
-		    },
+                "customDetails": null,
                 "entityMappings": [
                     {
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
-                            }
-                        ]
-                    },
-                    {
-                        "entityType": "CloudApplication",
-                        "fieldMappings": [
-                            {
                                 "identifier": "Name",
-                                "columnName": "targetDisplayName"
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -585,13 +584,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "InitiatingIpAddress"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.1.0"
+                "templateVersion": "1.1.1"
             }
         },
         {
@@ -605,13 +604,14 @@
                 "description": "Identifies evidence of password spray activity against Azure AD applications by looking for failures from multiple accounts from the same\nIP address within a time window. If the number of accounts breaches the threshold just once, all failures from the IP address within the time range\nare bought into the result. Details on whether there were successful authentications by the IP address within the time window are also included.\nThis can be an indicator that an attack was successful.\nThe default failure acccount threshold is 5, Default time window for failures is 20m and default look back window is 3 days\nNote: Due to the number of possible accounts involved in a password spray it is not possible to map identities to a custom entity.\nReferences: https://docs.microsoft.com/azure/active-directory/reports-monitoring/reference-sign-ins-error-codes.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let timeRange = 3d;\nlet lookBack = 7d;\nlet authenticationWindow = 20m;\nlet authenticationThreshold = 5;\nlet isGUID = \"[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}\";\nlet failureCodes = dynamic([50053, 50126, 50055]); // invalid password, account is locked - too many sign ins, expired password\nlet successCodes = dynamic([0, 50055, 50057, 50155, 50105, 50133, 50005, 50076, 50079, 50173, 50158, 50072, 50074, 53003, 53000, 53001, 50129]);\n// Lookup up resolved identities from last 7 days\nlet aadFunc = (tableName:string){\nlet identityLookup = table(tableName)\n| where TimeGenerated >= ago(lookBack)\n| where not(Identity matches regex isGUID)\n| where isnotempty(UserId)\n| summarize by UserId, lu_UserDisplayName = UserDisplayName, lu_UserPrincipalName = UserPrincipalName, Type;\n// collect window threshold breaches\ntable(tableName)\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(failureCodes)\n| summarize FailedPrincipalCount = dcount(UserPrincipalName) by bin(TimeGenerated, authenticationWindow), IPAddress, AppDisplayName, Type\n| where FailedPrincipalCount >= authenticationThreshold\n| summarize WindowThresholdBreaches = count() by IPAddress, Type\n| join kind= inner (\n// where we breached a threshold, join the details back on all failure data\ntable(tableName)\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(failureCodes)\n| extend LocationDetails = todynamic(LocationDetails)\n| extend FullLocation = strcat(LocationDetails.countryOrRegion,'|', LocationDetails.state, '|', LocationDetails.city)\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated), make_set(ClientAppUsed), make_set(FullLocation), FailureCount = count() by IPAddress, AppDisplayName, UserPrincipalName, UserDisplayName, Identity, UserId, Type\n// lookup any unresolved identities\n| extend UnresolvedUserId = iff(Identity matches regex isGUID, UserId, \"\")\n| join kind= leftouter (\n identityLookup \n) on $left.UnresolvedUserId==$right.UserId\n| extend UserDisplayName=iff(isempty(lu_UserDisplayName), UserDisplayName, lu_UserDisplayName)\n| extend UserPrincipalName=iff(isempty(lu_UserPrincipalName), UserPrincipalName, lu_UserPrincipalName)\n| summarize StartTime = min(StartTime), EndTime = max(EndTime), make_set(UserPrincipalName), make_set(UserDisplayName), make_set(set_ClientAppUsed), make_set(set_FullLocation), make_list(FailureCount) by IPAddress, AppDisplayName, Type\n| extend FailedPrincipalCount = arraylength(set_UserPrincipalName)\n) on IPAddress\n| project IPAddress, StartTime, EndTime, TargetedApplication=AppDisplayName, FailedPrincipalCount, UserPrincipalNames=set_UserPrincipalName, UserDisplayNames=set_UserDisplayName, ClientAppsUsed=set_set_ClientAppUsed, Locations=set_set_FullLocation, FailureCountByPrincipal=list_FailureCount, WindowThresholdBreaches, Type\n| join kind= inner (\ntable(tableName) // get data on success vs. failure history for each IP\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(successCodes) or ResultType in(failureCodes) // success or failure types\n| summarize GlobalSuccessPrincipalCount = dcountif(UserPrincipalName, (ResultType in(successCodes))), ResultTypeSuccesses = make_set_if(ResultType, (ResultType in(successCodes))), GlobalFailPrincipalCount = dcountif(UserPrincipalName, (ResultType in(failureCodes))), ResultTypeFailures = make_set_if(ResultType, (ResultType in(failureCodes))) by IPAddress, Type\n| where GlobalFailPrincipalCount > GlobalSuccessPrincipalCount // where the number of failed principals is greater than success - eliminates FPs from IPs who authenticate successfully alot and as a side effect have alot of failures\n) on IPAddress\n| project-away IPAddress1\n| extend timestamp=StartTime, IPCustomEntity = IPAddress\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt",
+                "query": "let timeRange = 3d;\nlet lookBack = 7d;\nlet authenticationWindow = 20m;\nlet authenticationThreshold = 5;\nlet isGUID = \"[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}\";\nlet failureCodes = dynamic([50053, 50126, 50055]); // invalid password, account is locked - too many sign ins, expired password\nlet successCodes = dynamic([0, 50055, 50057, 50155, 50105, 50133, 50005, 50076, 50079, 50173, 50158, 50072, 50074, 53003, 53000, 53001, 50129]);\n// Lookup up resolved identities from last 7 days\nlet aadFunc = (tableName:string){\nlet identityLookup = table(tableName)\n| where TimeGenerated >= ago(lookBack)\n| where not(Identity matches regex isGUID)\n| where isnotempty(UserId)\n| summarize by UserId, lu_UserDisplayName = UserDisplayName, lu_UserPrincipalName = UserPrincipalName, Type;\n// collect window threshold breaches\ntable(tableName)\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(failureCodes)\n| summarize FailedPrincipalCount = dcount(UserPrincipalName) by bin(TimeGenerated, authenticationWindow), IPAddress, AppDisplayName, Type\n| where FailedPrincipalCount >= authenticationThreshold\n| summarize WindowThresholdBreaches = count() by IPAddress, Type\n| join kind= inner (\n// where we breached a threshold, join the details back on all failure data\ntable(tableName)\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(failureCodes)\n| extend LocationDetails = todynamic(LocationDetails)\n| extend FullLocation = strcat(LocationDetails.countryOrRegion,'|', LocationDetails.state, '|', LocationDetails.city)\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated), make_set(ClientAppUsed,20), make_set(FullLocation,20), FailureCount = count() by IPAddress, AppDisplayName, UserPrincipalName, UserDisplayName, Identity, UserId, Type\n// lookup any unresolved identities\n| extend UnresolvedUserId = iff(Identity matches regex isGUID, UserId, \"\")\n| join kind= leftouter (\n identityLookup\n) on $left.UnresolvedUserId==$right.UserId\n| extend UserDisplayName=iff(isempty(lu_UserDisplayName), UserDisplayName, lu_UserDisplayName)\n| extend UserPrincipalName=iff(isempty(lu_UserPrincipalName), UserPrincipalName, lu_UserPrincipalName)\n| summarize StartTime = min(StartTime), EndTime = max(EndTime), make_set(UserPrincipalName,20), make_set(UserDisplayName,20), make_set(set_ClientAppUsed,20), make_set(set_FullLocation,20), make_list(FailureCount,20) by IPAddress, AppDisplayName, Type\n| extend FailedPrincipalCount = array_length(set_UserPrincipalName)\n) on IPAddress\n| project IPAddress, StartTime, EndTime, TargetedApplication=AppDisplayName, FailedPrincipalCount, UserPrincipalNames=set_UserPrincipalName, UserDisplayNames=set_UserDisplayName, ClientAppsUsed=set_set_ClientAppUsed, Locations=set_set_FullLocation, FailureCountByPrincipal=list_FailureCount, WindowThresholdBreaches, Type\n| join kind= inner (\ntable(tableName) // get data on success vs. failure history for each IP\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(successCodes) or ResultType in(failureCodes) // success or failure types\n| summarize GlobalSuccessPrincipalCount = dcountif(UserPrincipalName, (ResultType in (successCodes))), ResultTypeSuccesses = make_set_if(ResultType, (ResultType in (successCodes))), GlobalFailPrincipalCount = dcountif(UserPrincipalName, (ResultType in (failureCodes))), ResultTypeFailures = make_set_if(ResultType, (ResultType in (failureCodes))) by IPAddress, Type\n| where GlobalFailPrincipalCount > GlobalSuccessPrincipalCount // where the number of failed principals is greater than success - eliminates FPs from IPs who authenticate successfully alot and as a side effect have alot of failures\n) on IPAddress\n| project-away IPAddress1\n| extend timestamp=StartTime\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt",
                 "queryFrequency": "P1D",
                 "queryPeriod": "P7D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "CredentialAccess"
                 ],
@@ -642,13 +642,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "IPAddress"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.2"
+                "templateVersion": "1.0.4"
             }
         },
         {
@@ -662,13 +662,14 @@
                 "description": "The query looks for source code files being modified immediately after a build process is started. The purpose of this is to look for malicious code injection during the build process. This query uses Microsoft Defender for Endpoint telemetry.\nMore details: https://techcommunity.microsoft.com/t5/azure-sentinel/monitoring-the-software-supply-chain-with-azure-sentinel/ba-p/2176463",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "// How far back to look for events from\nlet timeframe = 1d;\n// How close together build events and file modifications should occur to alert (make this smaller to reduce FPs)\nlet time_window = 5m;\n// Edit this to include build processes used\nlet build_processes = dynamic([\"MSBuild.exe\", \"dotnet.exe\", \"VBCSCompiler.exe\"]);\n// Include any processes that you want to allow to edit files during/around the build process\nlet allow_list = dynamic([]);\nDeviceProcessEvents\n| where TimeGenerated > ago(timeframe)\n// Look for build process starts\n| where FileName has_any (build_processes)\n| summarize by BuildParentProcess=InitiatingProcessFileName, BuildProcess=FileName, BuildAccount = AccountName, DeviceName, BuildCommand=ProcessCommandLine, timekey= bin(TimeGenerated, time_window), BuildProcessTime=TimeGenerated\n| join kind=inner(\nDeviceFileEvents\n| where TimeGenerated > ago(timeframe)\n| where InitiatingProcessFileName !in (allow_list)\n| where ActionType == \"FileCreated\"  or ActionType == \"FileModified\"\n// Look for code files, edit this to include file extensions used in build.\n| where FileName endswith \".cs\" or FileName endswith \".cpp\"\n| summarize by FileEditParentProcess=InitiatingProcessParentFileName, FileEditAccount = InitiatingProcessAccountName, DeviceName, FileEdited=FileName, FileEditProcess=InitiatingProcessFileName, timekey= bin(TimeGenerated, time_window), FileEditTime=TimeGenerated)\n// join where build processes and file modifications seen at same time on same host\non timekey, DeviceName\n// Limit to only where the file edit happens after the build process starts\n| where BuildProcessTime <= FileEditTime\n| summarize make_set(FileEdited), make_set(FileEditProcess), make_set(FileEditAccount) by timekey, DeviceName, BuildParentProcess, BuildProcess\n| extend HostCustomEntity=DeviceName, timestamp=timekey",
+                "query": "// How far back to look for events from\nlet timeframe = 1d;\n// How close together build events and file modifications should occur to alert (make this smaller to reduce FPs)\nlet time_window = 5m;\n// Edit this to include build processes used\nlet build_processes = dynamic([\"MSBuild.exe\", \"dotnet.exe\", \"VBCSCompiler.exe\"]);\n// Include any processes that you want to allow to edit files during/around the build process\nlet allow_list = dynamic([]);\nDeviceProcessEvents\n| where TimeGenerated > ago(timeframe)\n// Look for build process starts\n| where FileName has_any (build_processes)\n| summarize by BuildParentProcess=InitiatingProcessFileName, BuildProcess=FileName, BuildAccount = AccountName, DeviceName, BuildCommand=ProcessCommandLine, timekey= bin(TimeGenerated, time_window), BuildProcessTime=TimeGenerated\n| join kind=inner(\nDeviceFileEvents\n| where TimeGenerated > ago(timeframe)\n| where InitiatingProcessFileName !in (allow_list)\n| where ActionType == \"FileCreated\"  or ActionType == \"FileModified\"\n// Look for code files, edit this to include file extensions used in build.\n| where FileName endswith \".cs\" or FileName endswith \".cpp\"\n| summarize by FileEditParentProcess=InitiatingProcessParentFileName, FileEditAccount = InitiatingProcessAccountName, DeviceName, FileEdited=FileName, FileEditProcess=InitiatingProcessFileName, timekey= bin(TimeGenerated, time_window), FileEditTime=TimeGenerated)\n// join where build processes and file modifications seen at same time on same host\non timekey, DeviceName\n// Limit to only where the file edit happens after the build process starts\n| where BuildProcessTime <= FileEditTime\n| summarize make_set(FileEdited), make_set(FileEditProcess), make_set(FileEditAccount) by timekey, DeviceName, BuildParentProcess, BuildProcess\n| extend HostName = iff(DeviceName has '.', substring(DeviceName,0,indexof(DeviceName,'.')),DeviceName)\n| extend DnsDomain = iff(DeviceName has '.', substring(DeviceName,indexof(DeviceName,'.')+1),\"\")",
                 "queryFrequency": "P1D",
                 "queryPeriod": "P1D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Persistence"
                 ],
@@ -698,14 +699,18 @@
                         "entityType": "Host",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "HostCustomEntity"
+                                "identifier": "HostName",
+                                "columnName": "HostName"
+                            },
+                            {
+                                "identifier": "DnsDomain",
+                                "columnName": "DnsDomain"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.0"
+                "templateVersion": "1.0.1"
             }
         },
         {
@@ -716,10 +721,10 @@
             "apiVersion": "2022-09-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - Rare application consent')]",
-                "description": "This will alert when the \"Consent to application\" operation occurs by a user that has not done this operation before or rarely does this.\nThis could indicate that permissions to access the listed Azure App were provided to a malicious actor. \nConsent to application, Add service principal and Add OAuth2PermissionGrant should typically be rare events. \nThis may help detect the Oauth2 attack that can be initiated by this publicly available tool - https://github.com/fireeye/PwnAuth\nFor further information on AuditLogs please see https://docs.microsoft.com/azure/active-directory/reports-monitoring/reference-audit-activities.",
+                "description": "This will alert when the \"Consent to application\" operation occurs by a user that has not done this operation before or rarely does this.\nThis could indicate that permissions to access the listed Azure App were provided to a malicious actor.\nConsent to application, Add service principal and Add OAuth2PermissionGrant should typically be rare events.\nThis may help detect the Oauth2 attack that can be initiated by this publicly available tool - https://github.com/fireeye/PwnAuth\nFor further information on AuditLogs please see https://docs.microsoft.com/azure/active-directory/reports-monitoring/reference-audit-activities.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let current = 1d;\nlet auditLookback = 7d;\n// Setting threshold to 3 as a default, change as needed.  \n// Any operation that has been initiated by a user or app more than 3 times in the past 7 days will be excluded\nlet threshold = 3;\n// Gather initial data from lookback period, excluding current, adjust current to more than a single day if no results\nlet AuditTrail = AuditLogs | where TimeGenerated >= ago(auditLookback) and TimeGenerated < ago(current)\n// 2 other operations that can be part of malicious activity in this situation are \n// \"Add OAuth2PermissionGrant\" and \"Add service principal\", extend the filter below to capture these too\n| where OperationName has \"Consent to application\"\n| extend InitiatedBy = iff(isnotempty(tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)), \ntostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName), tostring(parse_json(tostring(InitiatedBy.app)).displayName))\n| extend TargetResourceName = tolower(tostring(TargetResources.[0].displayName))\n| summarize max(TimeGenerated), OperationCount = count() by OperationName, InitiatedBy, TargetResourceName\n// only including operations by initiated by a user or app that is above the threshold so we produce only rare and has not occurred in last 7 days\n| where OperationCount > threshold\n;\n// Gather current period of audit data\nlet RecentConsent = AuditLogs | where TimeGenerated >= ago(current)\n| where OperationName has \"Consent to application\"\n| extend IpAddress = case(\nisnotempty(tostring(parse_json(tostring(InitiatedBy.user)).ipAddress)) and tostring(parse_json(tostring(InitiatedBy.user)).ipAddress) != 'null', tostring(parse_json(tostring(InitiatedBy.user)).ipAddress), \nisnotempty(tostring(parse_json(tostring(InitiatedBy.app)).ipAddress)) and tostring(parse_json(tostring(InitiatedBy.app)).ipAddress) != 'null', tostring(parse_json(tostring(InitiatedBy.app)).ipAddress),\n'Not Available')\n| extend InitiatedBy = iff(isnotempty(tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)), \ntostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName), tostring(parse_json(tostring(InitiatedBy.app)).displayName))\n| extend TargetResourceName = tolower(tostring(TargetResources.[0].displayName))\n| parse TargetResources.[0].modifiedProperties with * \"ConsentType: \" ConsentType \"]\" *\n| mv-expand AdditionalDetails\n| extend UserAgent = iff(AdditionalDetails.key == \"User-Agent\",tostring(AdditionalDetails.value),\"\")\n| project TimeGenerated, InitiatedBy, IpAddress, TargetResourceName, Category, OperationName, ConsentType, UserAgent, CorrelationId, Type;\n// Exclude previously seen audit activity for \"Consent to application\" that was seen in the lookback period\n// First for rare InitiatedBy\nlet RareConsentBy = RecentConsent | join kind= leftanti AuditTrail on OperationName, InitiatedBy \n| extend Reason = \"Previously unseen user consenting\";\n// Second for rare TargetResourceName\nlet RareConsentApp = RecentConsent | join kind= leftanti AuditTrail on OperationName, TargetResourceName\n| extend Reason = \"Previously unseen app granted consent\";\nRareConsentBy | union RareConsentApp\n| summarize Reason = makeset(Reason) by TimeGenerated, InitiatedBy, IpAddress, TargetResourceName, Category, OperationName, ConsentType, UserAgent, CorrelationId, Type\n| extend timestamp = TimeGenerated, AccountCustomEntity = InitiatedBy, HostCustomEntity = TargetResourceName, IPCustomEntity = IpAddress\n| join AuditLogs on $left.OperationName == $right.OperationName",
+                "query": "let current = 1d;\nlet auditLookback = 7d;\n// Setting threshold to 3 as a default, change as needed.\n// Any operation that has been initiated by a user or app more than 3 times in the past 7 days will be excluded\nlet threshold = 3;\n// Gather initial data from lookback period, excluding current, adjust current to more than a single day if no results\nlet AuditTrail = AuditLogs | where TimeGenerated >= ago(auditLookback) and TimeGenerated < ago(current)\n// 2 other operations that can be part of malicious activity in this situation are\n// \"Add OAuth2PermissionGrant\" and \"Add service principal\", extend the filter below to capture these too\n| where OperationName has \"Consent to application\"\n| extend InitiatedBy = iff(isnotempty(tostring(InitiatedBy.user.userPrincipalName)),\n          tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName))\n| mv-apply TargetResource = TargetResources on \n  (\n      where TargetResource.type =~ \"ServicePrincipal\"\n      | extend TargetResourceName = tolower(tostring(TargetResource.displayName))\n  )\n| summarize max(TimeGenerated), OperationCount = count() by OperationName, InitiatedBy, TargetResourceName\n// only including operations initiated by a user or app that is above the threshold so we produce only rare and has not occurred in last 7 days\n| where OperationCount > threshold;\n// Gather current period of audit data\nlet RecentConsent = AuditLogs | where TimeGenerated >= ago(current)\n| where OperationName has \"Consent to application\"\n| extend IpAddress = case(\n              isnotempty(tostring(InitiatedBy.user.ipAddress)) and tostring(InitiatedBy.user.ipAddress) != 'null', tostring(InitiatedBy.user.ipAddress),\n              isnotempty(tostring(InitiatedBy.app.ipAddress)) and tostring(InitiatedBy.app.ipAddress) != 'null', tostring(InitiatedBy.app.ipAddress),\n              'Not Available')\n| extend InitiatedBy = iff(isnotempty(tostring(InitiatedBy.user.userPrincipalName)),\n                          tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName))\n| mv-apply TargetResource = TargetResources on \n  (\n      where TargetResource.type =~ \"ServicePrincipal\"\n      | extend TargetResourceName = tolower(tostring(TargetResource.displayName)),\n               props = TargetResource.modifiedProperties\n  )\n| parse props with * \"ConsentType: \" ConsentType \"]\" *\n| mv-apply AdditionalDetail = AdditionalDetails on \n  (\n      where AdditionalDetail.key =~ \"User-Agent\"\n      | extend UserAgent = tostring(AdditionalDetail.value)\n  )\n| project TimeGenerated, InitiatedBy, IpAddress, TargetResourceName, Category, OperationName, ConsentType, UserAgent, CorrelationId, Type;\n// Exclude previously seen audit activity for \"Consent to application\" that was seen in the lookback period\n// First for rare InitiatedBy\nlet RareConsentBy = RecentConsent | join kind= leftanti AuditTrail on OperationName, InitiatedBy\n| extend Reason = \"Previously unseen user consenting\";\n// Second for rare TargetResourceName\nlet RareConsentApp = RecentConsent | join kind= leftanti AuditTrail on OperationName, TargetResourceName\n| extend Reason = \"Previously unseen app granted consent\";\nRareConsentBy | union RareConsentApp\n| summarize Reason = make_set(Reason,100) by TimeGenerated, InitiatedBy, IpAddress, TargetResourceName, Category, OperationName, ConsentType, UserAgent, CorrelationId, Type\n| extend timestamp = TimeGenerated, Name = tolower(tostring(split(InitiatedBy,'@',0)[0])), UPNSuffix = tolower(tostring(split(InitiatedBy,'@',1)[0]))",
                 "queryFrequency": "P1D",
                 "queryPeriod": "P7D",
                 "triggerOperator": "GreaterThan",
@@ -752,16 +757,18 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": {
-                    "ConsentType": "ConsentType"
-                },
+                "customDetails": null,
                 "entityMappings": [
                     {
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -770,7 +777,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Name",
-                                "columnName": "HostCustomEntity"
+                                "columnName": "TargetResourceName"
                             }
                         ]
                     },
@@ -785,7 +792,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.1.2"
+                "templateVersion": "1.1.4"
             }
         },
         {

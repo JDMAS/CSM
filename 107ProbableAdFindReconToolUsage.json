@@ -15,21 +15,26 @@
             "apiVersion": "2022-09-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - Probable AdFind Recon Tool Usage')]",
-                "description": "Identifies the host and account that executed AdFind by hash and filename in addition to common and unique flags that are used by many threat actors in discovery.",
+                "description": "This query identifies the host and account that executed AdFind, by hash and filename, in addition to the flags commonly utilized by various threat actors during the reconnaissance phase.",
                 "severity": "High",
                 "enabled": true,
-                "query": "let args = dynamic([\"objectcategory\",\"domainlist\",\"dcmodes\",\"adinfo\",\"trustdmp\",\"computers_pwdnotreqd\",\"Domain Admins\", \"objectcategory=person\", \"objectcategory=computer\", \"objectcategory=*\",\"dclist\"]);\nlet parentProcesses = dynamic([\"pwsh.exe\",\"powershell.exe\",\"cmd.exe\"]);\nDeviceProcessEvents\n//looks for execution from a shell\n| where InitiatingProcessFileName in (parentProcesses)\n// main filter\n| where FileName =~ \"AdFind.exe\" or SHA256 == \"c92c158d7c37fea795114fa6491fe5f145ad2f8c08776b18ae79db811e8e36a3\"\n   // AdFind common Flags to check for from various threat actor TTPs\n    or ProcessCommandLine has_any (args)\n| extend AccountCustomEntity = AccountName, HostCustomEntity = DeviceName, ProcessCustomEntity = InitiatingProcessFileName, CommandLineCustomEntity = ProcessCommandLine, AlgorithmCustomEntity = \"SHA256\", FileHashCustomEntity = SHA256",
+                "query": "let args = dynamic([\"objectcategory\",\"domainlist\",\"dcmodes\",\"adinfo\",\"trustdmp\",\"computers_pwdnotreqd\",\"Domain Admins\", \"objectcategory=person\", \"objectcategory=computer\", \"objectcategory=*\",\"dclist\"]);\nlet parentProcesses = dynamic([\"pwsh.exe\",\"powershell.exe\",\"cmd.exe\"]);\nDeviceProcessEvents\n//looks for execution from a shell\n| where InitiatingProcessFileName in~ (parentProcesses)\n// main filter\n| where FileName =~ \"AdFind.exe\" or SHA256 == \"c92c158d7c37fea795114fa6491fe5f145ad2f8c08776b18ae79db811e8e36a3\"\n   // AdFind common Flags to check for from various threat actor TTPs\n    or ProcessCommandLine has_any (args)\n| extend HostName = split(DeviceName, '.', 0)[0], DnsDomain = strcat_array(array_slice(split(DeviceName, '.'), 1, -1), '.'), FileHashAlgorithm = \"SHA256\"",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Discovery"
                 ],
                 "techniques": [
-                    "T1018"
+                    "T1016",
+                    "T1018",
+                    "T1069",
+                    "T1087",
+                    "T1482"
                 ],
                 "alertRuleTemplateName": "c63ae777-d5e0-4113-8c9a-c2c9d3d09fcd",
                 "incidentConfiguration": {
@@ -54,8 +59,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "AccountName"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "AccountDomain"
                             }
                         ]
                     },
@@ -64,7 +73,11 @@
                         "fieldMappings": [
                             {
                                 "identifier": "HostName",
-                                "columnName": "HostCustomEntity"
+                                "columnName": "HostName"
+                            },
+                            {
+                                "identifier": "DnsDomain",
+                                "columnName": "DnsDomain"
                             }
                         ]
                     },
@@ -73,11 +86,11 @@
                         "fieldMappings": [
                             {
                                 "identifier": "ProcessId",
-                                "columnName": "ProcessCustomEntity"
+                                "columnName": "InitiatingProcessFileName"
                             },
                             {
                                 "identifier": "CommandLine",
-                                "columnName": "CommandLineCustomEntity"
+                                "columnName": "ProcessCommandLine"
                             }
                         ]
                     },
@@ -86,17 +99,17 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Algorithm",
-                                "columnName": "AlgorithmCustomEntity"
+                                "columnName": "FileHashAlgorithm"
                             },
                             {
                                 "identifier": "Value",
-                                "columnName": "FileHashCustomEntity"
+                                "columnName": "SHA256"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.2"
+                "templateVersion": "1.0.3"
             }
         }
     ]

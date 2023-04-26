@@ -16,15 +16,16 @@
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - User Assigned Privileged Role')]",
                 "description": "Identifies when a new privileged role is assigned to a user.  Any account eligible for a role is now being given privileged access. If the assignment is unexpected or into a role that isn't the responsibility of the account holder, investigate.\nRef : https://docs.microsoft.com/azure/active-directory/fundamentals/security-operations-privileged-accounts#things-to-monitor-1",
-                "severity": "Low",
+                "severity": "High",
                 "enabled": true,
-                "query": "AuditLogs\n| where Category =~ \"RoleManagement\"\n| where AADOperationType in (\"Assign\", \"AssignEligibleRole\")\n| where ActivityDisplayName has_any (\"Add eligible member to role\", \"Add member to role\")\n| mv-expand TargetResources\n| mv-expand TargetResources.modifiedProperties\n| extend displayName_ = tostring(TargetResources_modifiedProperties.displayName)\n| where displayName_ =~ \"Role.DisplayName\"\n| extend RoleName = tostring(parse_json(tostring(TargetResources_modifiedProperties.newValue)))\n| where RoleName contains \"Admin\"\n| extend InitiatingApp = tostring(parse_json(tostring(InitiatedBy.app)).displayName)\n| extend Initiator = iif(isnotempty(InitiatingApp), InitiatingApp, tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName))\n// Uncomment below to not alert for PIM activations\n//| where Initiator != \"MS-PIM\"\n| extend Target = tostring(TargetResources.userPrincipalName)\n| summarize by bin(TimeGenerated, 1h), OperationName,  RoleName, Target, Initiator, Result\n| extend AccountCustomEntity = Target",
+                "query": "AuditLogs\n| where Category =~ \"RoleManagement\"\n| where AADOperationType in (\"Assign\", \"AssignEligibleRole\")\n| where ActivityDisplayName has_any (\"Add eligible member to role\", \"Add member to role\")\n| mv-apply TargetResource = TargetResources on \n  (\n      where TargetResource.type =~ \"User\"\n      | extend Target = tostring(TargetResource.userPrincipalName),\n               props = TargetResource.modifiedProperties\n  )\n| mv-apply Property = props on \n  (\n      where Property.displayName =~ \"Role.DisplayName\"\n      | extend RoleName = trim('\"',tostring(Property.newValue))\n  )\n| where RoleName contains \"Admin\"\n| extend InitiatingApp = tostring(InitiatedBy.app.displayName)\n| extend Initiator = iif(isnotempty(InitiatingApp), InitiatingApp, tostring(InitiatedBy.user.userPrincipalName))\n// Uncomment below to not alert for PIM activations\n//| where Initiator != \"MS-PIM\"\n| summarize by bin(TimeGenerated, 1h), OperationName,  RoleName, Target, Initiator, Result\n| extend TargetName = tostring(split(Target,'@',0)[0]), TargetUPNSuffix = tostring(split(Target,'@',1)[0]), InitiatorName = tostring(split(Initiator,'@',0)[0]), InitiatorUPNSuffix = tostring(split(Initiator,'@',1)[0])",
                 "queryFrequency": "PT2H",
                 "queryPeriod": "PT2H",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Persistence"
                 ],
@@ -51,11 +52,15 @@
                 "customDetails": null,
                 "entityMappings": [
                     {
-                        "entityType": "Process",
+                        "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "CommandLine",
-                                "columnName": "Initiator"
+                                "identifier": "Name",
+                                "columnName": "TargetName"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "TargetUPNSuffix"
                             }
                         ]
                     },
@@ -63,23 +68,18 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
-                            }
-                        ]
-                    },
-                    {
-                        "entityType": "AzureResource",
-                        "fieldMappings": [
+                                "identifier": "Name",
+                                "columnName": "InitiatorName"
+                            },
                             {
-                                "identifier": "ResourceId",
-                                "columnName": "RoleName"
+                                "identifier": "UPNSuffix",
+                                "columnName": "InitiatorUPNSuffix"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.3"
+                "templateVersion": "1.0.4"
             }
         }
     ]

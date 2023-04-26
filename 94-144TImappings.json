@@ -18,13 +18,14 @@
                 "description": "Identifies a match in DnsEvents from any Domain IOC from TI",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True);\n//Create a list of TLDs in our threat feed for later validation\nlet list_tlds = ThreatIntelligenceIndicator\n| where TimeGenerated > ago(ioc_lookBack)\n| where isnotempty(DomainName)\n| extend parts = split(DomainName, '.')\n| extend tld = parts[(array_length(parts)-1)]\n| summarize count() by tostring(tld)\n| summarize make_list(tld);\nlet Domain_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(DomainName)\n| extend TI_DomainEntity = DomainName\n),\n(IoCList\n| where IoC_Type =~ 'domainname'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_DomainEntity = IoC\n| project-away  IoC_Type\n)\n);\nDomain_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n  DnsEvents\n  | where TimeGenerated > ago(dt_lookBack)\n  //Extract domain patterns from syslog message\n  | where isnotempty(Name)\n  | extend parts = split(Name, '.')\n  //Split out the TLD\n  | extend tld = parts[(array_length(parts)-1)]\n  //Validate parsed domain by checking if the TLD is in the list of TLDs in our threat feed\n  | where tld in~ (list_tlds)\n  | extend DNS_TimeGenerated = TimeGenerated\n) on $left.TI_DomainEntity==$right.Name\n| where DNS_TimeGenerated < ExpirationDateTime\n| summarize DNS_TimeGenerated  = arg_max(DNS_TimeGenerated , *) by IndicatorId, Name, IoC\n| project DNS_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, Url, Computer, ClientIP, Name, QueryType, Type, IoC, TI_DomainEntity\n| extend timestamp = DNS_TimeGenerated, HostCustomEntity = Computer, IPCustomEntity = ClientIP, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True);\n//Create a list of TLDs in our threat feed for later validation\nlet list_tlds = ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true  \n| where isnotempty(DomainName)\n| extend parts = split(DomainName, '.')\n| extend tld = parts[(array_length(parts)-1)]\n| summarize count() by tostring(tld)\n| summarize make_list(tld);\nlet Domain_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(DomainName)\n| extend TI_DomainEntity = DomainName\n),\n(IoCList\n| where IoC_Type =~ 'domainname'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_DomainEntity = IoC\n| project-away  IoC_Type\n)\n);\nDomain_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n  DnsEvents\n  | where TimeGenerated > ago(dt_lookBack)\n  //Extract domain patterns from syslog message\n  | where isnotempty(Name)\n  | extend parts = split(Name, '.')\n  //Split out the TLD\n  | extend tld = parts[(array_length(parts)-1)]\n  //Validate parsed domain by checking if the TLD is in the list of TLDs in our threat feed\n  | where tld in~ (list_tlds)\n  | extend DNS_TimeGenerated = TimeGenerated\n) on $left.TI_DomainEntity==$right.Name\n| where DNS_TimeGenerated < ExpirationDateTime\n| summarize DNS_TimeGenerated  = arg_max(DNS_TimeGenerated , *) by IndicatorId, Name, IoC\n| project DNS_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, Url, Computer, ClientIP, Name, QueryType, Type, IoC, TI_DomainEntity\n| extend HostName = tostring(split(Computer, '.', 0)[0]), DnsDomain = tostring(strcat_array(array_slice(split(Computer, '.'), 1, -1), '.'))\n| extend timestamp = DNS_TimeGenerated",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -52,8 +53,12 @@
                         "entityType": "Host",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "HostCustomEntity"
+                                "identifier": "HostName",
+                                "columnName": "HostName"
+                            },
+                            {
+                                "identifier": "DnsDomain",
+                                "columnName": "DnsDomain"
                             }
                         ]
                     },
@@ -62,7 +67,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "ClientIP"
                             }
                         ]
                     },
@@ -71,13 +76,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.2"
+                "templateVersion": "1.3.3"
             }
         },
         {
@@ -91,13 +96,14 @@
                 "description": "Identifies a match in SecurityAlert table from any Domain IOC from TI",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True);\n//Create a list of TLDs in our threat feed for later validation\nlet list_tlds = ThreatIntelligenceIndicator\n| where TimeGenerated > ago(ioc_lookBack)\n| where isnotempty(DomainName)\n| extend parts = split(DomainName, '.')\n| extend tld = parts[(array_length(parts)-1)]\n| summarize count() by tostring(tld)\n| summarize make_list(tld);\nlet Domain_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(DomainName)\n| extend TI_DomainEntity = DomainName\n),\n(IoCList\n| where IoC_Type =~ 'domainname'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_DomainEntity = IoC\n| project-away  IoC_Type\n)\n);\nDomain_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\nSecurityAlert\n| where TimeGenerated > ago(dt_lookBack)\n| extend MSTI = case(AlertName has \"TI map\" and VendorName == \"Microsoft\" and ProductName == 'Azure Sentinel', true, false)\n| where MSTI == false\n//Extract domain patterns from message\n| extend domain = todynamic(dynamic_to_json(extract_all(@\"(((xn--)?[a-z0-9\\-]+\\.)+([a-z]+|(xn--[a-z0-9]+)))\", dynamic([1]), tolower(Entities))))\n| mv-expand domain\n| extend domain = tostring(domain[0])\n| extend parts = split(domain, '.')\n//Split out the TLD\n| extend tld = parts[(array_length(parts)-1)]\n//Validate parsed domain by checking if the TLD is in the list of TLDs in our threat feed\n| where tld in~ (list_tlds)\n// Converting Entities into dynamic data type and use mv-expand to unpack the array\n| extend EntitiesDynamicArray = parse_json(Entities)\n| mv-apply EntitiesDynamicArray on\n(summarize\nHostName = take_anyif(tostring(EntitiesDynamicArray.HostName), EntitiesDynamicArray.Type == \"host\"),\nIP_addr = take_anyif(tostring(EntitiesDynamicArray.Address), EntitiesDynamicArray.Type == \"ip\")\n)\n| extend Alert_TimeGenerated = TimeGenerated\n| extend Alert_Description = Description\n) on $left.TI_DomainEntity==$right.domain\n| where Alert_TimeGenerated < ExpirationDateTime\n| summarize Alert_TimeGenerated = arg_max(Alert_TimeGenerated, *) by IndicatorId, AlertName, IoC\n| project Alert_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, DomainName, AlertName, Alert_Description, ProviderName, AlertSeverity, ConfidenceLevel, HostName, IP_addr, Url, Entities, Type, IoC, TI_DomainEntity\n| extend timestamp = Alert_TimeGenerated, HostCustomEntity = HostName, IPCustomEntity = IP_addr, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True);\n//Create a list of TLDs in our threat feed for later validation\nlet list_tlds = ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n| where isnotempty(DomainName)\n| extend parts = split(DomainName, '.')\n| extend tld = parts[(array_length(parts)-1)]\n| summarize count() by tostring(tld)\n| summarize make_list(tld);\nlet Domain_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(DomainName)\n| extend TI_DomainEntity = DomainName\n),\n(IoCList\n| where IoC_Type =~ 'domainname'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_DomainEntity = IoC\n| project-away  IoC_Type\n)\n);\nDomain_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\nSecurityAlert\n| where TimeGenerated > ago(dt_lookBack)\n| extend MSTI = case(AlertName has \"TI map\" and VendorName == \"Microsoft\" and ProductName == 'Azure Sentinel', true, false)\n| where MSTI == false\n//Extract domain patterns from message\n| extend domain = todynamic(dynamic_to_json(extract_all(@\"(((xn--)?[a-z0-9\\-]+\\.)+([a-z]+|(xn--[a-z0-9]+)))\", dynamic([1]), tolower(Entities))))\n| mv-expand domain\n| extend domain = tostring(domain[0])\n| extend parts = split(domain, '.')\n//Split out the TLD\n| extend tld = parts[(array_length(parts)-1)]\n//Validate parsed domain by checking if the TLD is in the list of TLDs in our threat feed\n| where tld in~ (list_tlds)\n// Converting Entities into dynamic data type and use mv-expand to unpack the array\n| extend EntitiesDynamicArray = parse_json(Entities)\n| mv-apply EntitiesDynamicArray on\n(summarize\nHostName = take_anyif(tostring(EntitiesDynamicArray.HostName), EntitiesDynamicArray.Type == \"host\"),\nIP_addr = take_anyif(tostring(EntitiesDynamicArray.Address), EntitiesDynamicArray.Type == \"ip\")\n)\n| extend Alert_TimeGenerated = TimeGenerated\n| extend Alert_Description = Description\n) on $left.TI_DomainEntity==$right.domain\n| where Alert_TimeGenerated < ExpirationDateTime\n| summarize Alert_TimeGenerated = arg_max(Alert_TimeGenerated, *) by IndicatorId, AlertName, IoC\n| project Alert_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, DomainName, AlertName, Alert_Description, ProviderName, AlertSeverity, ConfidenceLevel, HostName, IP_addr, Url, Entities, Type, IoC, TI_DomainEntity\n| extend timestamp = Alert_TimeGenerated",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -125,8 +131,8 @@
                         "entityType": "Host",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "HostCustomEntity"
+                                "identifier": "HostName",
+                                "columnName": "HostName"
                             }
                         ]
                     },
@@ -135,7 +141,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "IP_addr"
                             }
                         ]
                     },
@@ -144,13 +150,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.3"
+                "templateVersion": "1.3.5"
             }
         },
         {
@@ -164,13 +170,14 @@
                 "description": "Identifies a match in AzureActivity table from any Email IOC from TI",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet emailregex = @'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$';\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n//Filtering the table for Email related IOCs\n| where isnotempty(EmailSenderAddress)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    AzureActivity | where TimeGenerated >= ago(dt_lookBack) and isnotempty(Caller)\n    | extend Caller = tolower(Caller)\n    | where Caller matches regex emailregex\n    | extend AzureActivity_TimeGenerated = TimeGenerated\n)\non $left.EmailSenderAddress == $right.Caller\n| where AzureActivity_TimeGenerated < ExpirationDateTime\n| summarize AzureActivity_TimeGenerated = arg_max(AzureActivity_TimeGenerated, *) by IndicatorId, Caller\n| project AzureActivity_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, Url, EmailSenderName, EmailRecipient, \nEmailSourceDomain, EmailSourceIpAddress, EmailSubject, FileHashValue, FileHashType, Caller, Level, CallerIpAddress, CategoryValue, OperationNameValue, ActivityStatusValue, \nResourceGroup, SubscriptionId\n| extend timestamp = AzureActivity_TimeGenerated, AccountCustomEntity = Caller, IPCustomEntity = CallerIpAddress, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet emailregex = @'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$';\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n//Filtering the table for Email related IOCs\n| where isnotempty(EmailSenderAddress)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    AzureActivity | where TimeGenerated >= ago(dt_lookBack) and isnotempty(Caller)\n    | extend Caller = tolower(Caller)\n    | where Caller matches regex emailregex\n    | extend AzureActivity_TimeGenerated = TimeGenerated\n)\non $left.EmailSenderAddress == $right.Caller\n| where AzureActivity_TimeGenerated < ExpirationDateTime\n| summarize AzureActivity_TimeGenerated = arg_max(AzureActivity_TimeGenerated, *) by IndicatorId, Caller\n| project AzureActivity_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, Url, EmailSenderName, EmailRecipient,\nEmailSourceDomain, EmailSourceIpAddress, EmailSubject, FileHashValue, FileHashType, Caller, Level, CallerIpAddress, CategoryValue, OperationNameValue, ActivityStatusValue,\nResourceGroup, SubscriptionId\n| extend Name = tostring(split(Caller, '@', 0)[0]), UPNSuffix = tostring(split(Caller, '@', 1)[0])\n| extend timestamp = AzureActivity_TimeGenerated",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -198,8 +205,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -208,7 +219,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "CallerIpAddress"
                             }
                         ]
                     },
@@ -217,13 +228,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.2"
+                "templateVersion": "1.2.3"
             }
         },
         {
@@ -237,13 +248,14 @@
                 "description": "Identifies a match in OfficeActivity table from any Email IOC from TI",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet emailregex = @'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$';\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n//Filtering the table for Email related IOCs\n| where isnotempty(EmailSenderAddress)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    OfficeActivity | where TimeGenerated >= ago(dt_lookBack) and isnotempty(UserId)\n    | where UserId matches regex emailregex\n    | extend OfficeActivity_TimeGenerated = TimeGenerated\n)\non $left.EmailSenderAddress == $right.UserId\n| where OfficeActivity_TimeGenerated < ExpirationDateTime\n| summarize OfficeActivity_TimeGenerated = arg_max(OfficeActivity_TimeGenerated, *) by IndicatorId, UserId\n| project OfficeActivity_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\nEmailSenderName, EmailRecipient, EmailSourceDomain, EmailSourceIpAddress, EmailSubject, FileHashValue, FileHashType, UserId, ClientIP, Operation, UserType, RecordType, OfficeWorkload, Parameters\n| extend timestamp = OfficeActivity_TimeGenerated, AccountCustomEntity = UserId, IPCustomEntity = ClientIP, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet emailregex = @'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$';\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n//Filtering the table for Email related IOCs\n| where isnotempty(EmailSenderAddress)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    OfficeActivity | where TimeGenerated >= ago(dt_lookBack) and isnotempty(UserId)\n    | where UserId matches regex emailregex\n    | extend OfficeActivity_TimeGenerated = TimeGenerated\n)\non $left.EmailSenderAddress == $right.UserId\n| where OfficeActivity_TimeGenerated < ExpirationDateTime\n| summarize OfficeActivity_TimeGenerated = arg_max(OfficeActivity_TimeGenerated, *) by IndicatorId, UserId\n| project OfficeActivity_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\nEmailSenderName, EmailRecipient, EmailSourceDomain, EmailSourceIpAddress, EmailSubject, FileHashValue, FileHashType, UserId, ClientIP, Operation, UserType, RecordType, OfficeWorkload, Parameters\n| extend Name = tostring(split(UserId, '@', 0)[0]), UPNSuffix = tostring(split(UserId, '@', 1)[0])\n| extend timestamp = OfficeActivity_TimeGenerated",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -271,8 +283,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -281,7 +297,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "ClientIP"
                             }
                         ]
                     },
@@ -290,13 +306,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.2"
+                "templateVersion": "1.2.3"
             }
         },
         {
@@ -310,13 +326,14 @@
                 "description": "Identifies a match in SecurityAlert table from any Email IOC from TI which will extend coverage to datatypes such as MCAS, StorageThreatProtection and many others",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet emailregex = @'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$';\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n//Filtering the table for Email related IOCs\n| where isnotempty(EmailSenderAddress)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    SecurityAlert \n    | where TimeGenerated >= ago(dt_lookBack)\n    | extend MSTI = case(AlertName has \"TI map\" and VendorName == \"Microsoft\" and ProductName == 'Azure Sentinel', true, false)\n    | where MSTI == false\n    // Converting Entities into dynamic data type and use mv-expand to unpack the array\n    | extend EntitiesDynamicArray = parse_json(Entities) | mv-expand EntitiesDynamicArray\n    // Parsing relevant entity column to filter type account and creating new column by combining account and UPNSuffix\n    | extend Entitytype = tostring(parse_json(EntitiesDynamicArray).Type), EntityName = tostring(parse_json(EntitiesDynamicArray).Name),\n    EntityUPNSuffix = tostring(parse_json(EntitiesDynamicArray).UPNSuffix)\n    | where Entitytype =~ \"account\"\n    | extend EntityEmail = tolower(strcat(EntityName, \"@\", EntityUPNSuffix))\n    | where EntityEmail matches regex emailregex\n    | extend Alert_TimeGenerated = TimeGenerated\n)\non $left.EmailSenderAddress == $right.EntityEmail\n| where Alert_TimeGenerated < ExpirationDateTime\n| summarize Alert_TimeGenerated = arg_max(Alert_TimeGenerated, *) by IndicatorId, AlertName\n| project Alert_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore, \nEmailSenderName, EmailRecipient, EmailSourceDomain, EmailSourceIpAddress, EmailSubject, FileHashValue, FileHashType, EntityEmail, AlertName, AlertType,\nAlertSeverity, Entities, ProviderName, VendorName\n| extend timestamp = Alert_TimeGenerated, AccountCustomEntity = EntityEmail, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet emailregex = @'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$';\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n//Filtering the table for Email related IOCs\n| where isnotempty(EmailSenderAddress)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    SecurityAlert\n    | where TimeGenerated >= ago(dt_lookBack)\n    | extend MSTI = case(AlertName has \"TI map\" and VendorName == \"Microsoft\" and ProductName == 'Azure Sentinel', true, false)\n    | where MSTI == false\n    // Converting Entities into dynamic data type and use mv-expand to unpack the array\n    | extend EntitiesDynamicArray = parse_json(Entities) | mv-expand EntitiesDynamicArray\n    // Parsing relevant entity column to filter type account and creating new column by combining account and UPNSuffix\n    | extend Entitytype = tostring(parse_json(EntitiesDynamicArray).Type), EntityName = tostring(parse_json(EntitiesDynamicArray).Name),\n    EntityUPNSuffix = tostring(parse_json(EntitiesDynamicArray).UPNSuffix)\n    | where Entitytype =~ \"account\"\n    | extend EntityEmail = tolower(strcat(EntityName, \"@\", EntityUPNSuffix))\n    | where EntityEmail matches regex emailregex\n    | extend Alert_TimeGenerated = TimeGenerated\n)\non $left.EmailSenderAddress == $right.EntityEmail\n| where Alert_TimeGenerated < ExpirationDateTime\n| summarize Alert_TimeGenerated = arg_max(Alert_TimeGenerated, *) by IndicatorId, AlertName\n| project Alert_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\nEmailSenderName, EmailRecipient, EmailSourceDomain, EmailSourceIpAddress, EmailSubject, FileHashValue, FileHashType, EntityEmail, AlertName, AlertType,\nAlertSeverity, Entities, ProviderName, VendorName\n| extend Name = tostring(split(EntityEmail, '@', 0)[0]), UPNSuffix = tostring(split(EntityEmail, '@', 1)[0])\n| extend timestamp = Alert_TimeGenerated",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -344,8 +361,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -354,13 +375,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.3"
+                "templateVersion": "1.2.4"
             }
         },
         {
@@ -374,13 +395,14 @@
                 "description": "Identifies a match in SigninLogs table from any Email IOC from TI",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet emailregex = @'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$';\nlet aadFunc = (tableName:string){\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n//Filtering the table for Email related IOCs\n| where isnotempty(EmailSenderAddress)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    table(tableName) | where TimeGenerated >= ago(dt_lookBack) and isnotempty(UserPrincipalName)\n    //Normalizing the column to lower case for exact match with EmailSenderAddress column\n    | extend UserPrincipalName = tolower(UserPrincipalName)\n    | where UserPrincipalName matches regex emailregex\n    | extend Status = todynamic(DeviceDetail), LocationDetails = todynamic(LocationDetails)\n    | extend StatusCode = tostring(Status.errorCode), StatusDetails = tostring(Status.additionalDetails)\n    | extend State = tostring(LocationDetails.state), City = tostring(LocationDetails.city), Region = tostring(LocationDetails.countryOrRegion)\n    // renaming timestamp column so it is clear the log this came from SigninLogs table\n    | extend SigninLogs_TimeGenerated = TimeGenerated, Type = Type\n)\non $left.EmailSenderAddress == $right.UserPrincipalName\n| where SigninLogs_TimeGenerated < ExpirationDateTime\n| summarize SigninLogs_TimeGenerated = arg_max(SigninLogs_TimeGenerated, *) by IndicatorId, UserPrincipalName\n| project SigninLogs_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\nEmailSenderName, EmailRecipient, EmailSourceDomain, EmailSourceIpAddress, EmailSubject, FileHashValue, FileHashType, IPAddress, UserPrincipalName, AppDisplayName,\nStatusCode, StatusDetails, NetworkIP, NetworkDestinationIP, NetworkSourceIP, Type\n| extend timestamp = SigninLogs_TimeGenerated, AccountCustomEntity = UserPrincipalName, IPCustomEntity = IPAddress, URLCustomEntity = Url\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet emailregex = @'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$';\nlet aadFunc = (tableName:string){\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n//Filtering the table for Email related IOCs\n| where isnotempty(EmailSenderAddress)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    table(tableName) | where TimeGenerated >= ago(dt_lookBack) and isnotempty(UserPrincipalName)\n    //Normalizing the column to lower case for exact match with EmailSenderAddress column\n    | extend UserPrincipalName = tolower(UserPrincipalName)\n    | where UserPrincipalName matches regex emailregex\n    | extend Status = todynamic(DeviceDetail), LocationDetails = todynamic(LocationDetails)\n    | extend StatusCode = tostring(Status.errorCode), StatusDetails = tostring(Status.additionalDetails)\n    | extend State = tostring(LocationDetails.state), City = tostring(LocationDetails.city), Region = tostring(LocationDetails.countryOrRegion)\n    // renaming timestamp column so it is clear the log this came from SigninLogs table\n    | extend SigninLogs_TimeGenerated = TimeGenerated, Type = Type\n)\non $left.EmailSenderAddress == $right.UserPrincipalName\n| where SigninLogs_TimeGenerated < ExpirationDateTime\n| summarize SigninLogs_TimeGenerated = arg_max(SigninLogs_TimeGenerated, *) by IndicatorId, UserPrincipalName\n| project SigninLogs_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\nEmailSenderName, EmailRecipient, EmailSourceDomain, EmailSourceIpAddress, EmailSubject, FileHashValue, FileHashType, IPAddress, UserPrincipalName, AppDisplayName,\nStatusCode, StatusDetails, NetworkIP, NetworkDestinationIP, NetworkSourceIP, Type\n| extend Name = tostring(split(UserPrincipalName, '@', 0)[0]), UPNSuffix = tostring(split(UserPrincipalName, '@', 1)[0])\n| extend timestamp = SigninLogs_TimeGenerated\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -408,8 +430,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -418,7 +444,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "IPAddress"
                             }
                         ]
                     },
@@ -427,13 +453,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.2"
+                "templateVersion": "1.2.3"
             }
         },
         {
@@ -444,16 +470,17 @@
             "apiVersion": "2022-10-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - TI map IP entity to AzureActivity')]",
-                "description": "Identifies a match in AzureActivity from any IP IOC from TI",
+                "description": "This query maps any IP indicators of compromise (IOCs) from threat intelligence (TI), by searching for matches in AzureActivity.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = materialize(externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True));\nlet IP_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(NetworkIP) or isnotempty(EmailSourceIpAddress) or isnotempty(NetworkDestinationIP) or isnotempty(NetworkSourceIP)\n// As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n// Taking the first non-empty value based on potential IOC match availability\n| extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n//Exclude local addresses, using the ipv4_is_private operator\n| where ipv4_is_private(TI_ipEntity) == false and  TI_ipEntity !startswith \"fe80\" and TI_ipEntity !startswith \"::\" and TI_ipEntity !startswith \"127.\"\n),\n(IoCList\n| where IoC_Type =~ 'IP'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_ipEntity = IoC\n| project-away  IoC_Type\n)\n);\nIP_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    AzureActivity | where TimeGenerated >= ago(dt_lookBack)\n    // renaming time column so it is clear the log this came from\n    | extend AzureActivity_TimeGenerated = TimeGenerated\n)\non $left.TI_ipEntity == $right.CallerIpAddress\n| where AzureActivity_TimeGenerated < ExpirationDateTime\n| summarize AzureActivity_TimeGenerated = arg_max(AzureActivity_TimeGenerated, *) by IndicatorId, CallerIpAddress, IoC\n| project AzureActivity_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore, TI_ipEntity, CallerIpAddress, \nCaller, OperationNameValue, ActivityStatusValue, CategoryValue, ResourceId, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress, Type\n| extend timestamp = AzureActivity_TimeGenerated, IPCustomEntity = CallerIpAddress, AccountCustomEntity = Caller, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = materialize(externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True));\nlet IP_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(NetworkIP) or isnotempty(EmailSourceIpAddress) or isnotempty(NetworkDestinationIP) or isnotempty(NetworkSourceIP)\n// As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n// Taking the first non-empty value based on potential IOC match availability\n| extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n//Exclude local addresses, using the ipv4_is_private operator\n| where ipv4_is_private(TI_ipEntity) == false and  TI_ipEntity !startswith \"fe80\" and TI_ipEntity !startswith \"::\" and TI_ipEntity !startswith \"127.\"\n),\n(IoCList\n| where IoC_Type =~ 'IP'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_ipEntity = IoC\n| project-away  IoC_Type\n)\n);\nIP_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    AzureActivity | where TimeGenerated >= ago(dt_lookBack)\n    // renaming time column so it is clear the log this came from\n    | extend AzureActivity_TimeGenerated = TimeGenerated\n)\non $left.TI_ipEntity == $right.CallerIpAddress\n| where AzureActivity_TimeGenerated < ExpirationDateTime\n| summarize AzureActivity_TimeGenerated = arg_max(AzureActivity_TimeGenerated, *) by IndicatorId, CallerIpAddress, IoC\n| project AzureActivity_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore, TI_ipEntity, CallerIpAddress, \nCaller, OperationNameValue, ActivityStatusValue, CategoryValue, ResourceId, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress, Type\n| extend timestamp = AzureActivity_TimeGenerated\n| extend Name = iif(Caller has '@', tostring(split(Caller,'@',0)[0]), \"\")\n| extend UPNSuffix = iif(Caller has '@', tostring(split(Caller,'@',1)[0]), \"\")\n| extend AadUserId = iif(Caller !has '@', tostring(Caller), \"\")",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -481,8 +508,16 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
+                            },
+                            {
+                                "identifier": "AadUserId",
+                                "columnName": "AadUserId"
                             }
                         ]
                     },
@@ -491,7 +526,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "CallerIpAddress"
                             }
                         ]
                     },
@@ -500,7 +535,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     },
@@ -515,7 +550,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.1"
+                "templateVersion": "1.3.2"
             }
         },
         {
@@ -526,16 +561,17 @@
             "apiVersion": "2022-10-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - TI map IP entity to DnsEvents')]",
-                "description": "Identifies a match in DnsEvents from any IP IOC from TI",
+                "description": "This query maps any IP indicators of compromise (IOCs) from threat intelligence (TI), by searching for matches in DnsEvents.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = materialize(externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True));\nlet IP_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(NetworkIP) or isnotempty(EmailSourceIpAddress) or isnotempty(NetworkDestinationIP) or isnotempty(NetworkSourceIP)\n// As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n// Taking the first non-empty value based on potential IOC match availability\n| extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n//Exclude local addresses, using the ipv4_is_private operator\n| where ipv4_is_private(TI_ipEntity) == false and  TI_ipEntity !startswith \"fe80\" and TI_ipEntity !startswith \"::\" and TI_ipEntity !startswith \"127.\"\n),\n(IoCList\n| where IoC_Type =~ 'IP'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_ipEntity = IoC\n| project-away  IoC_Type\n)\n);\nIP_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    DnsEvents\n    | where TimeGenerated >= ago(dt_lookBack)\n    | where SubType =~ \"LookupQuery\" and isnotempty(IPAddresses)\n    | mv-expand SingleIP = split(IPAddresses, \", \") to typeof(string)\n    // renaming time column so it is clear the log this came from\n    | extend DNS_TimeGenerated = TimeGenerated\n)\non $left.TI_ipEntity == $right.SingleIP\n| where DNS_TimeGenerated < ExpirationDateTime\n| summarize DNS_TimeGenerated = arg_max(DNS_TimeGenerated , *) by IndicatorId, SingleIP, IoC\n| project DNS_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, DomainName, ExpirationDateTime, ConfidenceScore,\nTI_ipEntity, Computer, EventId, SubType, ClientIP, Name, IPAddresses, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress, Type\n| extend timestamp = DNS_TimeGenerated, IPCustomEntity = ClientIP, HostCustomEntity = Computer, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = materialize(externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True));\nlet IP_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(NetworkIP) or isnotempty(EmailSourceIpAddress) or isnotempty(NetworkDestinationIP) or isnotempty(NetworkSourceIP)\n// As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n// Taking the first non-empty value based on potential IOC match availability\n| extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n//Exclude local addresses, using the ipv4_is_private operator\n| where ipv4_is_private(TI_ipEntity) == false and  TI_ipEntity !startswith \"fe80\" and TI_ipEntity !startswith \"::\" and TI_ipEntity !startswith \"127.\"\n),\n(IoCList\n| where IoC_Type =~ 'IP'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_ipEntity = IoC\n| project-away  IoC_Type\n)\n);\nIP_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    DnsEvents\n    | where TimeGenerated >= ago(dt_lookBack)\n    | where SubType =~ \"LookupQuery\" and isnotempty(IPAddresses)\n    | mv-expand SingleIP = split(IPAddresses, \", \") to typeof(string)\n    // renaming time column so it is clear the log this came from\n    | extend DNS_TimeGenerated = TimeGenerated\n)\non $left.TI_ipEntity == $right.SingleIP\n| where DNS_TimeGenerated < ExpirationDateTime\n| summarize DNS_TimeGenerated = arg_max(DNS_TimeGenerated , *) by IndicatorId, SingleIP, IoC\n| project DNS_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, DomainName, ExpirationDateTime, ConfidenceScore,\nTI_ipEntity, Computer, EventId, SubType, ClientIP, Name, IPAddresses, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress, Type\n| extend timestamp = DNS_TimeGenerated, HostName = tostring(split(Computer, '.', 0)[0]), DnsDomain = tostring(strcat_array(array_slice(split(Computer, '.'), 1, -1), '.'))",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -563,8 +599,12 @@
                         "entityType": "Host",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "HostCustomEntity"
+                                "identifier": "HostName",
+                                "columnName": "HostName"
+                            },
+                            {
+                                "identifier": "DnsDomain",
+                                "columnName": "DnsDomain"
                             }
                         ]
                     },
@@ -573,7 +613,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "ClientIP"
                             }
                         ]
                     },
@@ -582,13 +622,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.3"
+                "templateVersion": "1.3.4"
             }
         },
         {
@@ -599,16 +639,17 @@
             "apiVersion": "2022-10-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - TI map IP entity to OfficeActivity')]",
-                "description": "Identifies a match in OfficeActivity from any IP IOC from TI",
+                "description": "This query maps any IP indicators of compromise (IOCs) from threat intelligence (TI), by searching for matches in OfficeActivity.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = materialize(externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True));\nlet IP_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(NetworkIP) or isnotempty(EmailSourceIpAddress) or isnotempty(NetworkDestinationIP) or isnotempty(NetworkSourceIP)\n// As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n// Taking the first non-empty value based on potential IOC match availability\n| extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n//Exclude local addresses, using the ipv4_is_private operator\n| where ipv4_is_private(TI_ipEntity) == false and  TI_ipEntity !startswith \"fe80\" and TI_ipEntity !startswith \"::\" and TI_ipEntity !startswith \"127.\"\n),\n(IoCList\n| where IoC_Type =~ 'IP'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_ipEntity = IoC\n| project-away  IoC_Type\n)\n);\nIP_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    OfficeActivity\n    | where TimeGenerated >= ago(dt_lookBack)\n    | where isnotempty(ClientIP)\n    | extend ClientIPValues = extract_all(@'\\[?(::ffff:)?(?P<IPAddress>(\\d+\\.\\d+\\.\\d+\\.\\d+)|[^\\]%]+)(%\\d+)?\\]?([-:](?P<Port>\\d+))?', dynamic([\"IPAddress\", \"Port\"]), ClientIP)[0]\n    | extend IPAddress = tostring(ClientIPValues[0])\n    // renaming time column so it is clear the log this came from\n    | extend OfficeActivity_TimeGenerated = TimeGenerated\n)\non $left.TI_ipEntity == $right.IPAddress\n| where OfficeActivity_TimeGenerated < ExpirationDateTime\n| summarize OfficeActivity_TimeGenerated = arg_max(OfficeActivity_TimeGenerated, *) by IndicatorId, IoC\n| project OfficeActivity_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\nTI_ipEntity, ClientIP, UserId, Operation, ResultStatus, RecordType, OfficeObjectId, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress, Type\n| extend timestamp = OfficeActivity_TimeGenerated, IPCustomEntity = TI_ipEntity, AccountCustomEntity = UserId, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet IoCList = materialize(externaldata(TimeGenerated:datetime,IoC:string,IoC_Type:string,ExpirationDateTime:datetime,Description:string,Action:string, ConfidenceScore:real, ThreatType:string, Active:string,Type:string, TrafficLightProtocolLevel:string, ActivityGroupNames:string)[@\"https://raw.githubusercontent.com/microsoft/mstic/master/RapidReleaseTI/Indicators.csv\"] with(format=\"csv\", ignoreFirstRecord=True));\nlet IP_Indicators = (union isfuzzy=true\n(ThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(NetworkIP) or isnotempty(EmailSourceIpAddress) or isnotempty(NetworkDestinationIP) or isnotempty(NetworkSourceIP)\n// As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n// Taking the first non-empty value based on potential IOC match availability\n| extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n//Exclude local addresses, using the ipv4_is_private operator\n| where ipv4_is_private(TI_ipEntity) == false and  TI_ipEntity !startswith \"fe80\" and TI_ipEntity !startswith \"::\" and TI_ipEntity !startswith \"127.\"\n),\n(IoCList\n| where IoC_Type =~ 'IP'\n| where ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IoC\n| where Active =~ 'True'\n| extend TI_ipEntity = IoC\n| project-away  IoC_Type\n)\n);\nIP_Indicators\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    OfficeActivity\n    | where TimeGenerated >= ago(dt_lookBack)\n    | where isnotempty(ClientIP)\n    | extend ClientIPValues = extract_all(@'\\[?(::ffff:)?(?P<IPAddress>(\\d+\\.\\d+\\.\\d+\\.\\d+)|[^\\]%]+)(%\\d+)?\\]?([-:](?P<Port>\\d+))?', dynamic([\"IPAddress\", \"Port\"]), ClientIP)[0]\n    | extend IPAddress = iff(array_length(ClientIPValues) > 0, tostring(ClientIPValues[0]), '')\n    // renaming time column so it is clear the log this came from\n    | extend OfficeActivity_TimeGenerated = TimeGenerated\n)\non $left.TI_ipEntity == $right.IPAddress\n| where OfficeActivity_TimeGenerated < ExpirationDateTime\n| summarize OfficeActivity_TimeGenerated = arg_max(OfficeActivity_TimeGenerated, *) by IndicatorId, IoC\n| project OfficeActivity_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\nTI_ipEntity, ClientIP, UserId, Operation, ResultStatus, RecordType, OfficeObjectId, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress, Type\n| extend timestamp = OfficeActivity_TimeGenerated, Name = tostring(split(UserId, '@', 0)[0]), UPNSuffix = tostring(split(UserId, '@', 1)[0])",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -636,8 +677,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -646,7 +691,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "ClientIP"
+                                "columnName": "TI_ipEntity"
                             }
                         ]
                     },
@@ -655,13 +700,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "OfficeObjectId"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.3"
+                "templateVersion": "1.3.4"
             }
         },
         {
@@ -672,12 +717,12 @@
             "apiVersion": "2022-10-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - TI map IP entity to SigninLogs')]",
-                "description": "Identifies a match in SigninLogs from any IP IOC from TI",
+                "description": "This query maps any IP indicators of compromise (IOCs) from threat intelligence (TI), by searching for matches in SigninLogs.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 7d;\nlet aadFunc = (tableName: string) {\n    ThreatIntelligenceIndicator\n    | where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n    | summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n    | where Active == true\n    // Picking up only IOC's that contain the entities we want\n    | where isnotempty(NetworkIP)\n        or isnotempty(EmailSourceIpAddress)\n        or isnotempty(NetworkDestinationIP)\n        or isnotempty(NetworkSourceIP)\n    // As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n    // Taking the first non-empty value based on potential IOC match availability\n    | extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n    | extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n    | extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n    // using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n    | join kind=innerunique (\n        table(tableName)\n        | where TimeGenerated >= ago(dt_lookBack)\n        | extend Status = todynamic(Status), LocationDetails = todynamic(LocationDetails)\n        | extend\n            StatusCode = tostring(Status.errorCode),\n            StatusDetails = tostring(Status.additionalDetails),\n            StatusReason = tostring(Status.failureReason)\n        | extend\n            State = tostring(LocationDetails.state),\n            City = tostring(LocationDetails.city),\n            Region = tostring(LocationDetails.countryOrRegion)\n        // renaming time column so it is clear the log this came from\n        | extend SigninLogs_TimeGenerated = TimeGenerated, Type = Type\n        )\n        on $left.TI_ipEntity == $right.IPAddress\n    | where SigninLogs_TimeGenerated < ExpirationDateTime\n    | where StatusReason != \"Sign-in was blocked because it came from an IP address with malicious activity\"\n    | where StatusReason != \"Invalid username or password or Invalid on-premise username or password.\"\n    | where StatusReason != \"Account is locked because user tried to sign in too many times with an incorrect user ID or password.\"\n    | where StatusReason != \"Low risk of malicious activity.\"\n    | summarize SigninLogs_TimeGenerated = arg_max(SigninLogs_TimeGenerated, *) by IndicatorId, IPAddress\n    | project SigninLogs_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\n        TI_ipEntity, IPAddress, UserPrincipalName, AppDisplayName, StatusCode, StatusDetails, StatusReason, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress, Type\n    | extend\n        timestamp = SigninLogs_TimeGenerated,\n        AccountCustomEntity = UserPrincipalName,\n        IPCustomEntity = IPAddress,\n        URLCustomEntity = Url\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nlet aadFunc = (tableName:string){\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(NetworkIP) or isnotempty(EmailSourceIpAddress) or isnotempty(NetworkDestinationIP) or isnotempty(NetworkSourceIP)\n// As there is potentially more than 1 indicator type for matching IP, taking NetworkIP first, then others if that is empty.\n// Taking the first non-empty value based on potential IOC match availability\n| extend TI_ipEntity = iff(isnotempty(NetworkIP), NetworkIP, NetworkDestinationIP)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(NetworkSourceIP), NetworkSourceIP, TI_ipEntity)\n| extend TI_ipEntity = iff(isempty(TI_ipEntity) and isnotempty(EmailSourceIpAddress), EmailSourceIpAddress, TI_ipEntity)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n    table(tableName) | where TimeGenerated >= ago(dt_lookBack)\n    | extend Status = todynamic(Status), LocationDetails = todynamic(LocationDetails)\n    | extend StatusCode = tostring(Status.errorCode), StatusDetails = tostring(Status.additionalDetails), StatusReason = tostring(Status.failureReason)\n    | extend State = tostring(LocationDetails.state), City = tostring(LocationDetails.city), Region = tostring(LocationDetails.countryOrRegion)\n    // renaming time column so it is clear the log this came from\n    | extend SigninLogs_TimeGenerated = TimeGenerated, Type = Type\n)\non $left.TI_ipEntity == $right.IPAddress\n| where SigninLogs_TimeGenerated < ExpirationDateTime\n| summarize SigninLogs_TimeGenerated = arg_max(SigninLogs_TimeGenerated, *) by IndicatorId, IPAddress\n| project SigninLogs_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\nTI_ipEntity, IPAddress, UserPrincipalName, AppDisplayName, StatusCode, StatusDetails, StatusReason, NetworkIP, NetworkDestinationIP, NetworkSourceIP, EmailSourceIpAddress, Type\n| extend timestamp = SigninLogs_TimeGenerated, Name = tostring(split(UserPrincipalName, '@', 0)[0]), UPNSuffix = tostring(split(UserPrincipalName, '@', 1)[0])\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "P7D",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
@@ -704,16 +749,18 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": {
-                    "IncidentDescription": "Description"
-                },
+                "customDetails": null,
                 "entityMappings": [
                     {
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -722,7 +769,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "IPAddress"
                             }
                         ]
                     },
@@ -731,22 +778,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
-                            }
-                        ]
-                    },
-                    {
-                        "entityType": "Malware",
-                        "fieldMappings": [
-                            {
-                                "identifier": "Name",
-                                "columnName": "ThreatType"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.3"
+                "templateVersion": "1.2.4"
             }
         },
         {
@@ -757,7 +795,7 @@
             "apiVersion": "2022-10-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - TI map URL entity to AuditLogs')]",
-                "description": "Identifies a match in AuditLogs from any URL IOC from TI",
+                "description": "This query identifies any URL indicators of compromise (IOCs) from threat intelligence (TI) by searching for matches in AuditLogs.",
                 "severity": "Medium",
                 "enabled": true,
                 "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(Url)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n  AuditLogs\n  | where TimeGenerated >= ago(dt_lookBack)\n  // Extract the URL that is contained within the JSON data\n  | extend Url = extract(\"(http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\\\(\\\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+);\", 1,tostring(TargetResources))\n  | where isnotempty(Url)\n  | extend userPrincipalName = tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)\n  | extend TargetResourceDisplayName = tostring(TargetResources[0].displayName)\n  | extend Audit_TimeGenerated = TimeGenerated\n) on Url\n| where Audit_TimeGenerated < ExpirationDateTime\n| summarize Audit_TimeGenerated = arg_max(Audit_TimeGenerated, *) by IndicatorId, Url\n| project Audit_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore,\nOperationName, Identity, userPrincipalName, TargetResourceDisplayName, Url\n| extend timestamp = Audit_TimeGenerated, AccountCustomEntity = userPrincipalName, HostCustomEntity = TargetResourceDisplayName, URLCustomEntity = Url",
@@ -767,6 +805,7 @@
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -819,7 +858,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.2"
+                "templateVersion": "1.2.3"
             }
         },
         {
@@ -830,16 +869,17 @@
             "apiVersion": "2022-10-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - TI map URL entity to SecurityAlert data')]",
-                "description": "Identifies a match in SecurityAlert data from any URL IOC from TI",
+                "description": "This query identifies any URL indicators of compromise (IOCs) from threat intelligence (TI) by searching for matches in SecurityAlert data.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(Url)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n  SecurityAlert\n  | where TimeGenerated >= ago(dt_lookBack)\n  | extend MSTI = case(AlertName has \"TI map\" and VendorName == \"Microsoft\" and ProductName == 'Azure Sentinel', true, false)\n  | where MSTI == false\n  // Extract URL from JSON data\n  | extend Url = extract(\"(http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\\\(\\\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+)\", 1,Entities)\n  // We only want alerts that actually contain URL data\n  | where isnotempty(Url)\n  // Extract hostname from JSON data for entity mapping\n  | extend Compromised_Host = tostring(parse_json(ExtendedProperties).[\"Compromised Host\"])\n  | extend Alert_TimeGenerated = TimeGenerated\n) on Url\n| where Alert_TimeGenerated < ExpirationDateTime\n| summarize Alert_TimeGenerated = arg_max(Alert_TimeGenerated, *) by IndicatorId, AlertName\n| project Alert_TimeGenerated, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, AlertName, AlertSeverity, Description, Url, Compromised_Host\n| extend timestamp = Alert_TimeGenerated, HostCustomEntity = Compromised_Host, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n// Picking up only IOC's that contain the entities we want\n| where isnotempty(Url)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique (\n  SecurityAlert\n  | where TimeGenerated >= ago(dt_lookBack)\n  | extend MSTI = case(AlertName has \"TI map\" and VendorName == \"Microsoft\" and ProductName == 'Azure Sentinel', true, false)\n  | where MSTI == false\n  // Extract URL from JSON data\n  | extend Url = extract(\"(http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\\\(\\\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+)\", 1,Entities)\n  // We only want alerts that actually contain URL data\n  | where isnotempty(Url)\n  // Extract hostname from JSON data for entity mapping\n  | extend Compromised_Host = tostring(parse_json(ExtendedProperties).[\"Compromised Host\"])\n  | extend Alert_TimeGenerated = TimeGenerated\n) on Url\n| where Alert_TimeGenerated < ExpirationDateTime\n| summarize Alert_TimeGenerated = arg_max(Alert_TimeGenerated, *) by IndicatorId, AlertName\n| project timestamp = Alert_TimeGenerated, ActivityGroupNames, IndicatorId, ThreatType, ExpirationDateTime, ConfidenceScore, AlertName, AlertSeverity, Description, Url, Compromised_Host",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -867,8 +907,8 @@
                         "entityType": "Host",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "HostCustomEntity"
+                                "identifier": "HostName",
+                                "columnName": "Compromised_Host"
                             }
                         ]
                     },
@@ -877,13 +917,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.3"
+                "templateVersion": "1.2.4"
             }
         },           
 	{	
@@ -897,13 +937,14 @@
                 "description": "Identifies a match in Security Event data from any File Hash IOC from TI",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let dt_lookBack = 1h;\n let ioc_lookBack = 14d;\n ThreatIntelligenceIndicator\n | where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n | summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n | where Active == true\n | where isnotempty(FileHashValue)\n | extend FileHashValue = toupper(FileHashValue)\n // using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n | join kind=innerunique ( union isfuzzy=true \n   (SecurityEvent | where TimeGenerated >= ago(dt_lookBack)\n       | where EventID in (\"8003\",\"8002\",\"8005\")\n       | where isnotempty(FileHash)\n       | extend SecurityEvent_TimeGenerated = TimeGenerated, Event = EventID, FileHash = toupper(FileHash)\n   ),\n   (WindowsEvent | where TimeGenerated >= ago(dt_lookBack)\n       | where EventID in (\"8003\",\"8002\",\"8005\")\n       | where isnotempty(EventData.FileHash)\n       | extend SecurityEvent_TimeGenerated = TimeGenerated, Event = EventID, FileHash = toupper(EventData.FileHash)\n   )\n )\n on $left.FileHashValue == $right.FileHash\n | where SecurityEvent_TimeGenerated < ExpirationDateTime\n | summarize SecurityEvent_TimeGenerated = arg_max(SecurityEvent_TimeGenerated, *) by IndicatorId, FileHash\n | project SecurityEvent_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\n Process, FileHash, Computer, Account, Event, FileHashValue, FileHashType\n | extend timestamp = SecurityEvent_TimeGenerated, AccountCustomEntity = Account, HostCustomEntity = Computer, URLCustomEntity = Url",
+                "query": "let dt_lookBack = 1h;\nlet ioc_lookBack = 14d;\nThreatIntelligenceIndicator\n| where TimeGenerated >= ago(ioc_lookBack) and ExpirationDateTime > now()\n| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId\n| where Active == true\n| where isnotempty(FileHashValue)\n| extend FileHashValue = toupper(FileHashValue)\n// using innerunique to keep perf fast and result set low, we only need one match to indicate potential malicious activity that needs to be investigated\n| join kind=innerunique ( union isfuzzy=true\n  (SecurityEvent | where TimeGenerated >= ago(dt_lookBack)\n      | where EventID in (\"8003\",\"8002\",\"8005\")\n      | where isnotempty(FileHash)\n      | extend SecurityEvent_TimeGenerated = TimeGenerated, Event = EventID, FileHash = toupper(FileHash)\n  ),\n  (WindowsEvent | where TimeGenerated >= ago(dt_lookBack)\n      | where EventID in (\"8003\",\"8002\",\"8005\")\n      | where isnotempty(EventData.FileHash)\n      | extend SecurityEvent_TimeGenerated = TimeGenerated, Event = EventID, FileHash = toupper(EventData.FileHash)\n  )\n)\non $left.FileHashValue == $right.FileHash\n| where SecurityEvent_TimeGenerated < ExpirationDateTime\n| summarize SecurityEvent_TimeGenerated = arg_max(SecurityEvent_TimeGenerated, *) by IndicatorId, FileHash\n| project SecurityEvent_TimeGenerated, Description, ActivityGroupNames, IndicatorId, ThreatType, Url, ExpirationDateTime, ConfidenceScore,\nProcess, FileHash, Computer, Account, Event, FileHashValue, FileHashType\n| extend NTDomain = tostring(split(Account, '\\\\', 0)[0]), Name = tostring(split(Account, '\\\\', 1)[0])\n| extend HostName = tostring(split(Computer, '.', 0)[0]), DnsDomain = tostring(strcat_array(array_slice(split(Computer, '.'), 1, -1), '.')) \n| extend timestamp = SecurityEvent_TimeGenerated",
                 "queryFrequency": "PT1H",
-                "queryPeriod": "PT1H",
+                "queryPeriod": "P14D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Impact"
                 ],
@@ -931,8 +972,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "NTDomain",
+                                "columnName": "NTDomain"
                             }
                         ]
                     },
@@ -940,8 +985,12 @@
                         "entityType": "Host",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "HostCustomEntity"
+                                "identifier": "HostName",
+                                "columnName": "HostName"
+                            },
+                            {
+                                "identifier": "DnsDomain",
+                                "columnName": "DnsDomain"
                             }
                         ]
                     },
@@ -950,7 +999,7 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Url",
-                                "columnName": "URLCustomEntity"
+                                "columnName": "Url"
                             }
                         ]
                     },
@@ -969,7 +1018,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.4.1"
+                "templateVersion": "1.4.2"
             }
         }
     ]
