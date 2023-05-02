@@ -25,6 +25,7 @@
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [],
                 "techniques": [],
                 "alertRuleTemplateName": null,
@@ -63,9 +64,19 @@
                                 "columnName": "AddedToRole"
                             }
                         ]
+                    },
+                    {
+                        "entityType": "Process",
+                        "fieldMappings": [
+                            {
+                                "identifier": "CommandLine",
+                                "columnName": "Identity"
+                            }
+                        ]
                     }
                 ],
-                "sentinelEntitiesMappings": null
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
             }
         }
     ]
