@@ -1,0 +1,113 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','61000000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','61000000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Potential BlackLotus bootkit bypasses UEFI protections')]",
+                "description": "May 11, 2023 update: Microsoft has released CVE-2023-24932 and associated configuration guidance to address the Secure Boot bypass vulnerability the BlackLotus bootkit took advantage of, as described in this report.
+
+Microsoft is aware of public reporting documenting exploitation of CVE-2022-21894 in the wild. This vulnerability allows a Unified Extensible Firmware Interface (UEFI) bootkit known as BlackLotus to achieve persistence following the compromise of a Windows system with UEFI Secure Boot enabled. Secure Boot is a feature of UEFI that requires all low-level firmware and software components to be verified prior to loading. UEFI bootkits are particularly dangerous as they run at computer startup, prior to the operating system loading, and therefore can interfere with or disable various operating system (OS) security mechanisms such as BitLocker, HVCI, and Microsoft Defender.
+
+BlackLotus reportedly has been for sale on hacking forums since as early as October 2022 and, once installed, deploys a kernel driver to prevent removal as well as an HTTP downloader that communicates with command-and-control (C2) servers in order to load additional user-mode or kernel-mode payloads.
+
+An attacker needs local administrator privileges on the target device for the BlackLotus installer to proceed with deploying files to the EFI System Partition (ESP) or to perform actions such as stopping security processes.",
+                "severity": "High",
+                "enabled": true,
+                "query": " // Looks for registry events indicating HVCI was turned off \r\n DeviceRegistryEvents \r\n | where TimeGenerated > ago(1d) \r\n | where RegistryKey has_all ('HKEY_LOCAL_MACHINE', 'SYSTEM', 'Control', 'DeviceGuard', 'Scenarios', 'HypervisorEnforcedCodeIntegrity') and RegistryValueName has 'enabled' and RegistryValueData == \"0\"",
+                "queryFrequency": "P1D",
+                "queryPeriod": "P1D",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": {
+                    "ActionType": "ActionType"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Process",
+                        "fieldMappings": [
+                            {
+                                "identifier": "CommandLine",
+                                "columnName": "InitiatingProcessFileName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "File",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "InitiatingProcessFolderPath"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "RegistryKey",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Key",
+                                "columnName": "PreviousRegistryValueName"
+                            },
+                            {
+                                "identifier": "Hive",
+                                "columnName": "PreviousRegistryKey"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "AadUserId",
+                                "columnName": "InitiatingProcessAccountUpn"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}
