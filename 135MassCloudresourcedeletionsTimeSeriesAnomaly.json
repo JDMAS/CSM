@@ -49,7 +49,9 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+                    "DeletedRessources": "set_OperationNameValue"
+                },
                 "entityMappings": [
                     {
                         "entityType": "Account",
