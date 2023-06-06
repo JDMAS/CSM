@@ -82,7 +82,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.3"
+                "templateVersion": "1.3.4"
             }
         },
         {
@@ -156,7 +156,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.5"
+                "templateVersion": "1.3.6"
             }
         },
         {
@@ -234,7 +234,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.3"
+                "templateVersion": "1.2.4"
             }
         },
         {
@@ -312,7 +312,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.3"
+                "templateVersion": "1.2.4"
             }
         },
         {
@@ -381,7 +381,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.4"
+                "templateVersion": "1.2.5"
             }
         },
         {
@@ -459,7 +459,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.3"
+                "templateVersion": "1.2.4"
             }
         },
         {
@@ -550,7 +550,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.2"
+                "templateVersion": "1.3.3"
             }
         },
         {
@@ -628,7 +628,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.4"
+                "templateVersion": "1.3.5"
             }
         },
         {
@@ -706,7 +706,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.3.4"
+                "templateVersion": "1.3.5"
             }
         },
         {
@@ -784,7 +784,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.4"
+                "templateVersion": "1.2.5"
             }
         },
         {
@@ -858,7 +858,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.3"
+                "templateVersion": "1.2.4"
             }
         },
         {
@@ -923,7 +923,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.4"
+                "templateVersion": "1.2.5"
             }
         },           
 	{	
@@ -1018,7 +1018,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.4.2"
+                "templateVersion": "1.4.3"
             }
         }
     ]
