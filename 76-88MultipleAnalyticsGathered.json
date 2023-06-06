@@ -466,16 +466,17 @@
             "apiVersion": "2022-09-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - MFA disabled for a user')]",
-                "description": "Multi-Factor Authentication (MFA) helps prevent credential compromise. This alert identifies when an attempt has been made to disable MFA for a user ",
+                "description": "Multi-Factor Authentication (MFA) helps prevent credential compromise. This alert identifies when an attempt has been made to deactivate MFA for a user.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "(union isfuzzy=true\n(AuditLogs \n| where OperationName =~ \"Disable Strong Authentication\"\n| extend IPAddress = tostring(parse_json(tostring(InitiatedBy.user)).ipAddress) \n| extend InitiatedByUser = iff(isnotempty(tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)), \n tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName), tostring(parse_json(tostring(InitiatedBy.app)).displayName))\n| extend Targetprop = todynamic(TargetResources)\n| extend TargetUser = tostring(Targetprop[0].userPrincipalName) \n| summarize StartTimeUtc = min(TimeGenerated), EndTimeUtc = max(TimeGenerated) by User = TargetUser, InitiatedByUser , Operation = OperationName , CorrelationId, IPAddress, Category, Source = SourceSystem , AADTenantId, Type\n),\n(AWSCloudTrail\n| where EventName in~ (\"DeactivateMFADevice\", \"DeleteVirtualMFADevice\") \n| extend InstanceProfileName = tostring(parse_json(RequestParameters).InstanceProfileName)\n| extend TargetUser = tostring(parse_json(RequestParameters).userName)\n| summarize StartTimeUtc = min(TimeGenerated), EndTimeUtc = max(TimeGenerated) by User = TargetUser, Source = EventSource , Operation = EventName , TenantorInstance_Detail = InstanceProfileName, IPAddress = SourceIpAddress\n)\n)\n| extend timestamp = StartTimeUtc, AccountCustomEntity = User, IPCustomEntity = IPAddress",
+                "query": "(union isfuzzy=true\n(AuditLogs\n| where OperationName =~ \"Disable Strong Authentication\"\n| extend _parsedIntiatedByUser = parse_json(tostring(InitiatedBy.user))\n| extend _parsedIntiatedByApp = parse_json(tostring(InitiatedBy.app))\n| extend IPAddress = tostring(_parsedIntiatedByUser.ipAddress)\n| extend InitiatedByUser = iff(isnotempty(tostring(_parsedIntiatedByUser.userPrincipalName)),\n tostring(_parsedIntiatedByUser.userPrincipalName), tostring(_parsedIntiatedByApp.displayName))\n| extend Targetprop = todynamic(TargetResources)\n| extend TargetUser = tostring(Targetprop[0].userPrincipalName)\n| summarize StartTimeUtc = min(TimeGenerated), EndTimeUtc = max(TimeGenerated) by User = TargetUser, InitiatedByUser , Operation = OperationName , CorrelationId, IPAddress, Category, Source = SourceSystem , AADTenantId, Type\n),\n(AWSCloudTrail\n| where EventName in~ (\"DeactivateMFADevice\", \"DeleteVirtualMFADevice\")\n| extend _parsedRequestParameters = parse_json(RequestParameters)\n| extend InstanceProfileName = tostring(_parsedRequestParameters.InstanceProfileName)\n| extend TargetUser = tostring(_parsedRequestParameters.userName)\n| summarize StartTimeUtc = min(TimeGenerated), EndTimeUtc = max(TimeGenerated) by User = TargetUser, Source = EventSource , Operation = EventName , TenantorInstance_Detail = InstanceProfileName, IPAddress = SourceIpAddress\n)\n)\n| extend timestamp = StartTimeUtc, UserName = tostring(split(User, '@', 0)[0]), UPNSuffix = tostring(split(User, '@', 1)[0])",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "CredentialAccess",
                     "Persistence"
@@ -507,8 +508,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
+                                "identifier": "Name",
+                                "columnName": "UserName"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -517,13 +522,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "columnName": "IPAddress"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.3"
+                "templateVersion": "1.0.4"
             }
         },
         {
@@ -806,8 +811,8 @@
             "kind": "Scheduled",
             "apiVersion": "2022-09-01-preview",
             "properties": {
-		"displayName": "[concat(parameters('workspace'),' - SUNSPOT log file creation')]",
-                "description": "This query uses Microsoft Defender for Endpoint data and Windows Event Logs to look for IoCs associated with the SUNSPOT malware shared by Crowdstrike.\nMore details: \n  - https://www.crowdstrike.com/blog/sunspot-malware-technical-analysis/ \n  - https://techcommunity.microsoft.com/t5/azure-sentinel/monitoring-your-software-build-process-with-azure-sentinel/ba-p/2140807",
+		"displayName": "[concat(parameters('workspace'),'[Deprecated] - SUNSPOT log file creation')]",
+                "description":  "This query has been deprecated as the associated IoCs (Indicators of Compromise) are outdated and no longer relevant. To ensure effective threat detection, it is recommended to implement Microsoft's Threat Intelligence solution, which enables matching your log data with the most up-to-date IoCs generated by Microsoft. This solution can be installed from the Microsoft Sentinel Content Hub if not currently deployed. \nMore details on the Content Hub can be found here: \n - https://learn.microsoft.com/azure/sentinel/sentinel-solutions-deploy",
                 "severity": "Medium",
                 "enabled": true,
                 "query": "union isfuzzy=true\n(DeviceFileEvents\n| where FolderPath endswith \"vmware-vmdmp.log\"\n| extend HostCustomEntity = DeviceName, timestamp=TimeGenerated),\n(WindowsEvent\n| where EventID == 4663 and EventData has \"vmware-vmdmp.log\"\n| extend ObjectName = tostring(EventData.ObjectName) \n| where ObjectName endswith \"vmware-vmdmp.log\"\n| extend HostCustomEntity = Computer, timestamp=TimeGenerated),\n(SecurityEvent\n| where EventID == 4663\n| where ObjectName endswith \"vmware-vmdmp.log\"\n| extend HostCustomEntity = Computer, timestamp=TimeGenerated),\n(imFileEvent\n| where TargetFileName endswith \"vmware-vmdmp.log\"\n| extend HostCustomEntity = DvcHostname, timestamp=TimeGenerated\n)",
@@ -853,7 +858,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.2.2"
+                "templateVersion": "2.0.0"
             }
         }
     ]
