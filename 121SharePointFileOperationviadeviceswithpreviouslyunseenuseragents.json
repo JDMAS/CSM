@@ -60,7 +60,7 @@
                             },
                             {
                                 "identifier": "UPNSuffix",
-                                "columnName": "UserIdName"
+                                "columnName": "UserIdUPNSuffix"
                             }
                         ]
                     },
@@ -84,7 +84,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "2.2.0"
+                "templateVersion": "2.2.1"
             }
         }
     ]

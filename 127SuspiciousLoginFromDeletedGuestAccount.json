@@ -18,13 +18,14 @@
                 "description": " This query will detect logins from guest account which was recently deleted. \nFor any successful logins from deleted identities should be investigated further if any existing user accounts have been altered or linked to such identity prior deletion",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let lookback = 1d;\nlet DeleteExtUsers = AuditLogs\n| where TimeGenerated > ago(lookback)\n| where Category =~ \"UserManagement\"\n| where OperationName =~ \"Delete external user\"\n| where Result =~ \"success\"\n| extend InviteInitiator = tostring(InitiatedBy.[\"user\"].[\"userPrincipalName\"])\n| extend Target = tostring(TargetResources[0].[\"displayName\"])\n| extend TargetUPN = tostring(extract(@\"UPN\\:\\s(.+)\\,\\sEmail\",1,Target)) , DeleteUserTime = TimeGenerated;\nDeleteExtUsers\n| join kind=inner (\nSigninLogs\n| where TimeGenerated > ago(lookback)\n| extend LoginTime = TimeGenerated\n) on $left.TargetUPN == $right.UserPrincipalName\n| where DeleteUserTime > LoginTime",
-                "queryFrequency": "P1D",
+                "query": "let query_frequency = 1h;\nlet query_period = 1d;\nAuditLogs\n| where TimeGenerated > ago(query_frequency)\n| where Category =~ \"UserManagement\" and OperationName =~ \"Delete user\"\n| mv-expand TargetResource = TargetResources\n| where TargetResource[\"type\"] == \"User\" and TargetResource[\"userPrincipalName\"] has \"#EXT#\"\n| extend ParsedDeletedUserPrincipalName = extract(@\"^[0-9a-f]{32}([^\\#]+)\\#EXT\\#\", 1, tostring(TargetResource[\"userPrincipalName\"]))\n| extend\n    Initiator = iif(isnotempty(InitiatedBy[\"app\"]), tostring(InitiatedBy[\"app\"][\"displayName\"]), tostring(InitiatedBy[\"user\"][\"userPrincipalName\"])),\n    InitiatorId = iif(isnotempty(InitiatedBy[\"app\"]), tostring(InitiatedBy[\"app\"][\"servicePrincipalId\"]), tostring(InitiatedBy[\"user\"][\"id\"])),\n    Delete_IPAddress = tostring(InitiatedBy[tostring(bag_keys(InitiatedBy)[0])][\"ipAddress\"])\n| project Delete_TimeGenerated = TimeGenerated, Category, Identity, Initiator, Delete_IPAddress, OperationName, Result, ParsedDeletedUserPrincipalName, InitiatedBy, AdditionalDetails, TargetResources, InitiatorId, CorrelationId\n| join kind=inner (\n    SigninLogs\n    | where TimeGenerated > ago(query_period)\n    | summarize take_any(*) by UserPrincipalName\n    | extend ParsedUserPrincipalName = translate(\"@\", \"_\", UserPrincipalName)\n    | project SigninLogs_TimeGenerated = TimeGenerated, UserPrincipalName, UserDisplayName, ResultType, ResultDescription, IPAddress, LocationDetails, AppDisplayName, ResourceDisplayName, ClientAppUsed, UserAgent, DeviceDetail, UserId, UserType, OriginalRequestId, ParsedUserPrincipalName\n    ) on $left.ParsedDeletedUserPrincipalName == $right.ParsedUserPrincipalName\n| where Delete_TimeGenerated > SigninLogs_TimeGenerated\n| project-away ParsedDeletedUserPrincipalName, ParsedUserPrincipalName\n| extend\n    AccountName = tostring(split(UserPrincipalName, \"@\")[0]),\n    AccountUPNSuffix = tostring(split(UserPrincipalName, \"@\")[1])",
+                "queryFrequency": "PT1H",
                 "queryPeriod": "P1D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "PrivilegeEscalation"
                 ],
@@ -54,8 +55,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "InviteInitiator"
+                                "identifier": "Name",
+                                "columnName": "AccountName"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "AccountUPNSuffix"
                             }
                         ]
                     },
@@ -70,7 +75,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.1"
+                "templateVersion": "1.0.2"
             }
         }
     ]

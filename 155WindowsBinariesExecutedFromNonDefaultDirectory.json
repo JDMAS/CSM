@@ -18,7 +18,7 @@
                 "description": "The query detects Windows binaries, that can be executed from a non-default directory (e.g. C:\\Windows\\, C:\\Windows\\System32 etc.). \nRef: https://lolbas-project.github.io/",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let procList = externaldata(Process:string) [@\"https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Microsoft_Lolbas_Execution_Binaries.csv\"] with (format=\"csv\", ignoreFirstRecord=True);\nSecurityEvent\n| where EventID == 4688 and Process has_any (procList) and not (NewProcessName has (\"C:\\\\Windows\\\\\"))\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by EventID, Computer, SubjectUserName, NewProcessName, Process, CommandLine, Account",
+                "query": "let procList = externaldata(Process:string) [@\"https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Microsoft_Lolbas_Execution_Binaries.csv\"] with (format=\"csv\", ignoreFirstRecord=True);\nSecurityEvent\n| where EventID == 4688 and Process has_any (procList) and not (NewProcessName has (\"C:\\\\Windows\\\\\"))\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by EventID, Computer, SubjectUserName, NewProcessName, Process, CommandLine\n| extend Name=tostring(split(SubjectUserName, \"@\")[0]), UPNSuffix=tostring(split(SubjectUserName, \"@\")[1])\n| extend HostName = iif(Computer has '.',substring(Computer,0,indexof(Computer,'.')),Computer) , DnsDomain = iif(Computer has '.',substring(Computer,indexof(Computer,'.')+1),'')",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
                 "triggerOperator": "GreaterThan",
@@ -55,8 +55,12 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "Account"
+                                "identifier": "Name",
+                                "columnName": "Name"
+                            },
+                            {
+                                "identifier": "UPNSuffix",
+                                "columnName": "UPNSuffix"
                             }
                         ]
                     },
@@ -64,8 +68,12 @@
                         "entityType": "Host",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "Computer"
+                                "identifier": "HostName",
+                                "columnName": "HostName"
+                            },
+                            {
+                                "identifier": "DnsDomain",
+                                "columnName": "DnsDomain"
                             }
                         ]
                     },
@@ -74,22 +82,13 @@
                         "fieldMappings": [
                             {
                                 "identifier": "CommandLine",
-                                "columnName": "NewProcessName"
-                            }
-                        ]
-                    },
-                    {
-                        "entityType": "File",
-                        "fieldMappings": [
-                            {
-                                "identifier": "Name",
-                                "columnName": "Process"
+                                "columnName": "CommandLine"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.1"
+                "templateVersion": "1.0.2"
             }
         }
     ]
