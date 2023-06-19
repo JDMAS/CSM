@@ -49,7 +49,10 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+                    "InitiatedBy": "Initiator",
+                    "UserModified": "AccountUPN"
+                },
                 "entityMappings": [
                     {
                         "entityType": "Account",
