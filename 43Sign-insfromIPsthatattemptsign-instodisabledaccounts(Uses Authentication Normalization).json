@@ -51,27 +51,14 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": {
-                    "DisabledAccount": "disabledAccountSet",
-                    "AttemptsOnDisabled": "disabledAccountLoginAttempts",
-                    "SuccesfulLogins": "successfulAccountSigninSet"
-                },
+                "customDetails": null,
                 "entityMappings": [
                     {
                         "entityType": "IP",
                         "fieldMappings": [
                             {
                                 "identifier": "Address",
-                                "columnName": "SrcDvcIpAddr"
-                            }
-                        ]
-                    },
-                    {
-                        "entityType": "CloudApplication",
-                        "fieldMappings": [
-                            {
-                                "identifier": "Name",
-                                "columnName": "applicationSet"
+                                "columnName": "IPCustomEntity"
                             }
                         ]
                     }
