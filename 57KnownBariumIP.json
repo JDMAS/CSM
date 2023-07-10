@@ -14,7 +14,7 @@
             "kind": "Scheduled",
             "apiVersion": "2022-09-01-preview",
             "properties": {
-                "displayName": "[concat(parameters('workspace'),' - [Deprecated] - Known Barium IP')]",
+                "displayName": "[concat(parameters('workspace'),' - Known Barium IP')]",
                 "description": "Identifies a match across various data feeds for IP IOCs related to the Barium activity group.\n References: https://www.justice.gov/opa/pr/seven-international-cyber-defendants-including-apt41-actors-charged-connection-computer",
                 "severity": "High",
                 "enabled": true,
