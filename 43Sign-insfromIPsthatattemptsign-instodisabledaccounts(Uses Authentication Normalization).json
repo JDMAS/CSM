@@ -51,7 +51,10 @@
                     "aggregationKind": "SingleAlert"
                 },
                 "alertDetailsOverride": null,
-                "customDetails": null,
+                "customDetails": {
+                    "DisabledAccount": "disabledAccountSet",
+                    "SuccesfulAccount": "successfulAccountSigninSet"
+                },
                 "entityMappings": [
                     {
                         "entityType": "IP",
@@ -59,6 +62,15 @@
                             {
                                 "identifier": "Address",
                                 "columnName": "IPCustomEntity"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "CloudApplication",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "applicationSet"
                             }
                         ]
                     }
