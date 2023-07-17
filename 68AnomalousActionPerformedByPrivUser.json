@@ -18,7 +18,7 @@
                 "description": "https://techcommunity.microsoft.com/t5/microsoft-sentinel-blog/ueba-essentials-solution-now-available-in-content-hub/ba-p/3651074\nReference: https://learn.microsoft.com/en-us/azure/sentinel/ueba-reference\n\nConsider contacting user or IT responsible. The anomaly score, between 0-10 (0=benign, 10=highly anomalous).",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "BehaviorAnalytics\r\n  | where ActivityInsights.FirstTimeActionPerformedInTenant == True\r\n  | where UsersInsights.BlastRadius == 'High'\r\n  | extend AadUserId = UsersInsights.AccountObjectID",
+                "query": "BehaviorAnalytics\r\n  | where ActivityInsights.FirstTimeActionPerformedInTenant == True\r\n  | where UsersInsights.BlastRadius == 'High'\r\n  | extend AadUserId = UsersInsights.AccountObjectID"\r\n | where SourceIPAddress != "81.7.181.98",
                 "queryFrequency": "PT1H",
                 "queryPeriod": "PT1H",
                 "triggerOperator": "GreaterThan",
