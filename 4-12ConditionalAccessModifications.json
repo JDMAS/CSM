@@ -156,7 +156,7 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "Name",
+                                "identifier": "FullName",
                                 "columnName": "modifiedBy"
                             }
                         ]
@@ -217,7 +217,7 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "Name",
+                                "identifier": "FullName",
                                 "columnName": "modifiedBy"
                             }
                         ]
@@ -269,7 +269,7 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "Name",
+                                "identifier": "FullName",
                                 "columnName": "modifiedBy"
                             }
                         ]
@@ -450,7 +450,7 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "Name",
+                                "identifier": "FullName",
                                 "columnName": "Name"
                             },
                             {
@@ -516,8 +516,8 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "Name,
-                                "columnName": "modifiedBy"
+                                "identifier": "FullName,
+                                "columnName": "Name"
                             }
                         ]
                     }
