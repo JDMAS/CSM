@@ -23,7 +23,7 @@
                 "queryPeriod": "PT6H",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
-                "suppressionDuration": "PT1H",
+                "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
                 "startTimeUtc": null,
                 "tactics": [
