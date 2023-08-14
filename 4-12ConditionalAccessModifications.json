@@ -67,6 +67,7 @@
             "apiVersion": "2022-11-01-preview",
             "properties": {
 		"displayName": "[concat(parameters('workspace'),' - Conditional Access - A Conditional Access user/group/role exclusion has changed')]",
+                "displayName": "[concat(parameters('workspace'),' - Conditional Access - A Conditional Access user/group/role exclusion has changed",
                 "description": "A Conditional Access user/group/role exclusion has changed in Azure AD.",
                 "severity": "Low",
                 "enabled": true,
