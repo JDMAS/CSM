@@ -517,7 +517,7 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName,
+                                "identifier": "FullName",
                                 "columnName": "Name"
                             }
                         ]
