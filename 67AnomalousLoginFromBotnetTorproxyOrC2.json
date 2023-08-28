@@ -80,7 +80,8 @@
                         ]
                     }
                 ],
-                "sentinelEntitiesMappings": null
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
             }
         }
     ]
