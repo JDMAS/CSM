@@ -65,14 +65,14 @@
                         ]
                     },
                     {
-                        "entityType": "Account",
+                        "entityType": "Process",
                         "fieldMappings": [
                             {
                                 "identifier": "Name",
                                 "columnName": "InitiatorName"
                             },
                             {
-                                "identifier": "UPNSuffix",
+                                "identifier": "CommandLine",
                                 "columnName": "InitiatorUPNSuffix"
                             }
                         ]
