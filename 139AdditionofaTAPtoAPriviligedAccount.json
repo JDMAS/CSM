@@ -18,13 +18,14 @@
                 "description": "Detects when a Temporary Access Pass (TAP) is created for a Privileged Account.\n  A Temporary Access Pass is a time-limited passcode issued by an admin that satisfies strong authentication requirements and can be used to onboard other authentication methods, including Passwordless ones such as Microsoft Authenticator or even Windows Hello.\n  A threat actor could use a TAP to register a new authentication method to maintain persistance to an account.\n  Review any TAP creations to ensure they were used legitimately.\n  Ref: https://docs.microsoft.com/azure/active-directory/fundamentals/security-operations-privileged-accounts#changes-to-privileged-accounts",
                 "severity": "High",
                 "enabled": true,
-                "query": "let admin_users = (IdentityInfo\n  | summarize arg_max(TimeGenerated, *) by AccountUPN\n  | where AssignedRoles contains \"admin\"\n  | summarize by tolower(AccountUPN));\n  AuditLogs\n  | where OperationName =~ \"Admin registered security info\"\n  | where ResultReason =~ \"Admin registered temporary access pass method for user\"\n  | extend userPrincipalName = tostring(TargetResources[0].userPrincipalName)\n  | where tolower(userPrincipalName) in (admin_users)",
+                "query": "let admin_users = (IdentityInfo\n  | summarize arg_max(TimeGenerated, *) by AccountUPN\n  | where AssignedRoles contains \"admin\"\n  | summarize by tolower(AccountUPN));\n  AuditLogs\n  | where OperationName =~ \"Admin registered security info\"\n  | where ResultReason =~ \"Admin registered temporary access pass method for user\"\n  | extend userPrincipalName = tostring(TargetResources[0].userPrincipalName)\n  | where tolower(userPrincipalName) in (admin_users)\n",
                 "queryFrequency": "P1D",
                 "queryPeriod": "P1D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Persistence"
                 ],
@@ -61,7 +62,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.1"
+                "templateVersion": "1.0.2"
             }
         }
     ]

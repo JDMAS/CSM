@@ -1,0 +1,78 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','10900000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','10900000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - Nanocore network indicators')]",
+                "description": "https://github.com/reversinglabs/reversinglabs-siem-rules/blob/master/Malware/Nanocore/20230904/KQL/nanocore-20230904-network.kql",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "let payloadURLs = external_data(Domain: string) [h\"https://raw.githubusercontent.com/reversinglabs/reversinglabs-siem-rules/master/Malware/Nanocore/20230904/KQL/nanocore-20230904-payloadurls.txt\"];\r\nlet c2ips = external_data(c2ip: string) [h\"https://raw.githubusercontent.com/reversinglabs/reversinglabs-siem-rules/master/Malware/Nanocore/20230904/KQL/nanocore-20230904-c2ips.txt\"];\r\nlet ddns = external_data(ddnsdomain: string) [h\"https://raw.githubusercontent.com/reversinglabs/reversinglabs-siem-rules/master/Malware/Nanocore/20230904/KQL/nanocore-20230904-ddns.txt\"];\r\nCommonSecurityLog\r\n| where RequestURL in (payloadURLs) or RequestURL in (ddns) or DestinationHostName in (ddns) or DestinationIP in (c2ips)\r\n| union \r\n(DeviceNetworkEvents\r\n| where RemoteUrl in (payloadURLs) or RemoteUrl in (ddns) or RemoteIP in (c2ips))\r\n//(SysmonParser\r\n//| where EventID == 22\r\n//| where QueryName in (payloadURLs) or QueryName in (ddns))",
+                "queryFrequency": "PT5H",
+                "queryPeriod": "PT5H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "CommandAndControl"
+                ],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": {
+                    "RemoteIP": "RemoteIP"
+                },
+                "entityMappings": [
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "LocalIP"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}
