@@ -1,0 +1,57 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/','17500000-0000-0000-0000-000000000000')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/','17500000-0000-0000-0000-000000000000')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2022-09-01-preview",
+            "properties": {
+                "displayName": "[concat(parameters('workspace'),' - BumbleBee process execution')]",
+                "description": "https://github.com/reversinglabs/reversinglabs-siem-rules/blob/master/Malware/BumbleBee/20230626/KQL/bumblebee-20230626-execs.kql",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "// description: BumbleBee process execution seen for week of 2023-06-26\r\nSecurityEvent\r\n| where EventID == 4688\r\n| where Process == \"rundll32.exe\" and CommandLine matches regex @\"C:\\\\Users\\\\.*\\\\AppData\\\\Roaming\\\\Microsoft\\\\Templates\\\\.*\\.(dat|dll)\"\r\n| union isfuzzy=true\r\n((DeviceProcessEvents\r\n| where FileName == \"rundll32.exe\" and ProcessCommandLine matches regex @\"C:\\\\Users\\\\.*\\\\AppData\\\\Roaming\\\\Microsoft\\\\Templates\\\\.*\\.(dat|dll)\"\r\n))",
+                "queryFrequency": "PT30M",
+                "queryPeriod": "PT30M",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Execution"
+                ],
+                "techniques": [],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": null,
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}
