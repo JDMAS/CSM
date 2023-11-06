@@ -32,7 +32,7 @@
                 "techniques": [
                     "T1078"
                 ],
-                "alertRuleTemplateName": "050b9b3d-53d0-4364-a3da-1b678b8211ec",
+                "alertRuleTemplateName": null,
                 "incidentConfiguration": {
                     "createIncident": true,
                     "groupingConfiguration": {
