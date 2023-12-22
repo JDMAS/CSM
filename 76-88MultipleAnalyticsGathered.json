@@ -232,16 +232,17 @@
             "apiVersion": "2022-09-01-preview",
             "properties": {
 		"displayName": "[concat(parameters('workspace'),' - Detect PIM Alert Disabling activity')]",
-                "description": "Privileged Identity Management (PIM) generates alerts when there is suspicious or unsafe activity in Azure Active Directory (Azure AD) organization. \nThis query will help detect attackers attempts to disable in product PIM alerts which are associated with Azure MFA requirements and could indicate activation of privileged access",
+                "description": "Privileged Identity Management (PIM) generates alerts when there is suspicious or unsafe activity in Microsoft Entra ID (Azure AD) organization. \nThis query will help detect attackers attempts to disable in product PIM alerts which are associated with Azure MFA requirements and could indicate activation of privileged access",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "AuditLogs\n| where LoggedByService =~ \"PIM\"\n| where Category =~ \"RoleManagement\"\n| where ActivityDisplayName has \"Disable PIM Alert\"\n| extend IpAddress = case(\n  isnotempty(tostring(parse_json(tostring(InitiatedBy.user)).ipAddress)) and tostring(parse_json(tostring(InitiatedBy.user)).ipAddress) != 'null', tostring(parse_json(tostring(InitiatedBy.user)).ipAddress), \n  isnotempty(tostring(parse_json(tostring(InitiatedBy.app)).ipAddress)) and tostring(parse_json(tostring(InitiatedBy.app)).ipAddress) != 'null', tostring(parse_json(tostring(InitiatedBy.app)).ipAddress),\n  'Not Available')\n| extend InitiatedBy = iff(isnotempty(tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)), \n  tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName), tostring(parse_json(tostring(InitiatedBy.app)).displayName)), UserRoles = tostring(parse_json(tostring(InitiatedBy.user)).ipAddress)\n| project InitiatedBy, ActivityDateTime, ActivityDisplayName, IpAddress, AADOperationType, AADTenantId, ResourceId, CorrelationId, Identity\n| extend timestamp = ActivityDateTime, IPCustomEntity = IpAddress, AccountCustomEntity = tolower(InitiatedBy), ResourceCustomEntity = ResourceId",
+                "query": "AuditLogs\n| where LoggedByService =~ \"PIM\"\n| where Category =~ \"RoleManagement\"\n| where ActivityDisplayName has \"Disable PIM Alert\"\n| extend IpAddress = case(\n  isnotempty(tostring(parse_json(tostring(InitiatedBy.user)).ipAddress)) and tostring(parse_json(tostring(InitiatedBy.user)).ipAddress) != 'null', tostring(parse_json(tostring(InitiatedBy.user)).ipAddress), \n  isnotempty(tostring(parse_json(tostring(InitiatedBy.app)).ipAddress)) and tostring(parse_json(tostring(InitiatedBy.app)).ipAddress) != 'null', tostring(parse_json(tostring(InitiatedBy.app)).ipAddress),\n  'Not Available')\n| extend InitiatedBy = iff(isnotempty(tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)), \n  tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName), tostring(parse_json(tostring(InitiatedBy.app)).displayName)), UserRoles = tostring(parse_json(tostring(InitiatedBy.user)).ipAddress)\n| project InitiatedBy, ActivityDateTime, ActivityDisplayName, IpAddress, AADOperationType, AADTenantId, ResourceId, CorrelationId, Identity\n| extend AccountName = tostring(split(InitiatedBy, \"@\")[0]), AccountUPNSuffix = tostring(split(InitiatedBy, \"@\")[1])\n",
                 "queryFrequency": "P1D",
                 "queryPeriod": "P1D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "Persistence",
                     "PrivilegeEscalation"
@@ -273,17 +274,16 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
-                                "identifier": "FullName",
-                                "columnName": "AccountCustomEntity"
-                            }
-                        ]
-                    },
-                    {
-                        "entityType": "IP",
-                        "fieldMappings": [
+                                "identifier": "Name",
+                                "columnName": "AccountName"
+                            },
                             {
-                                "identifier": "Address",
-                                "columnName": "IPCustomEntity"
+                                "identifier": "UPNSuffix",
+                                "columnName": "AccountUPNSuffix"
+                            },
+                            {
+                                "identifier": "FullName",
+                                "columnName": "InitiatedBy"
                             }
                         ]
                     },
@@ -292,13 +292,22 @@
                         "fieldMappings": [
                             {
                                 "identifier": "ResourceId",
-                                "columnName": "ResourceCustomEntity"
+                                "columnName": "ResourceId"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "IpAddress"
                             }
                         ]
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.1"
+                "templateVersion": "1.0.4"
             }
         },
         {
@@ -397,16 +406,17 @@
             "apiVersion": "2022-09-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - Failed host logons but success logon to AzureAD')]",
-                "description": "Identifies a list of IP addresses with a minimum number(default of 5) of failed logon attempts to remote hosts.\nUses that list to identify any successful logons to Azure Active Directory from these IPs within the same timeframe.",
+                "description": "Identifies a list of IP addresses with a minimum number(default of 5) of failed logon attempts to remote hosts.\nUses that list to identify any successful logons to Microsoft Entra ID from these IPs within the same timeframe.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "//Adjust this threshold to fit environment\nlet signin_threshold = 5; \n//Make a list of IPs with failed Windows host logins above threshold\nlet win_fails = \nSecurityEvent\n| where EventID == 4625\n| where LogonType in (10, 7, 3)\n| where IpAddress != \"-\"\n| summarize count() by IpAddress\n| where count_ > signin_threshold\n| summarize make_list(IpAddress);\nlet wef_fails =\nWindowsEvent\n| where EventID == 4625\n| extend LogonType = tostring(EventData.LogonType)\n| where LogonType in (10, 7, 3)\n| extend IpAddress = tostring(EventData.IpAddress)\n| where IpAddress != \"-\"\n| summarize count() by IpAddress\n| where count_ > signin_threshold\n| summarize make_list(IpAddress);\n//Make a list of IPs with failed *nix host logins above threshold\nlet nix_fails = \nSyslog\n| where Facility contains 'auth' and ProcessName != 'sudo' and SyslogMessage has 'from' and not(SyslogMessage has_any ('Disconnecting', 'Disconnected', 'Accepted', 'disconnect', @'[preauth]'))\n| extend SourceIP = extract(\"(([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.(([0-9]{1,3})))\",1,SyslogMessage)\n| where SourceIP != \"\" and SourceIP != \"127.0.0.1\"\n| summarize count() by SourceIP\n| where count_ > signin_threshold\n| summarize make_list(SourceIP);\n//See if any of the IPs with failed host logins hve had a sucessful Azure AD login\nlet aadFunc = (tableName:string){\ntable(tableName)\n| where ResultType in (\"0\", \"50125\", \"50140\")\n| where IPAddress in (win_fails) or IPAddress in (nix_fails) or IPAddress in (wef_fails)\n| extend Reason=  \"Multiple failed host logins from IP address with successful Azure AD login\"\n| extend timestamp = TimeGenerated, AccountCustomEntity = UserPrincipalName, IPCustomEntity = IPAddress, Type = Type\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt",
+                "query": "//Adjust this threshold to fit environment\nlet signin_threshold = 5; \n//Make a list of IPs with failed Windows host logins above threshold\nlet win_fails = \nSecurityEvent\n| where EventID == 4625\n| where LogonType in (10, 7, 3)\n| where IpAddress != \"-\"\n| summarize count() by IpAddress\n| where count_ > signin_threshold\n| summarize make_list(IpAddress);\nlet wef_fails =\nWindowsEvent\n| where EventID == 4625\n| extend LogonType = tostring(EventData.LogonType)\n| where LogonType in (10, 7, 3)\n| extend IpAddress = tostring(EventData.IpAddress)\n| where IpAddress != \"-\"\n| summarize count() by IpAddress\n| where count_ > signin_threshold\n| summarize make_list(IpAddress);\n//Make a list of IPs with failed *nix host logins above threshold\nlet nix_fails = \nSyslog\n| where Facility contains 'auth' and ProcessName != 'sudo' and SyslogMessage has 'from' and not(SyslogMessage has_any ('Disconnecting', 'Disconnected', 'Accepted', 'disconnect', @'[preauth]'))\n| extend SourceIP = extract(\"(([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.(([0-9]{1,3})))\",1,SyslogMessage)\n| where SourceIP != \"\" and SourceIP != \"127.0.0.1\"\n| summarize count() by SourceIP\n| where count_ > signin_threshold\n| summarize make_list(SourceIP);\n//See if any of the IPs with failed host logins hve had a sucessful Azure AD login\nlet aadFunc = (tableName:string){\ntable(tableName)\n| where ResultType in (\"0\", \"50125\", \"50140\")\n| where IPAddress in (win_fails) or IPAddress in (nix_fails) or IPAddress in (wef_fails)\n| extend Reason=  \"Multiple failed host logins from IP address with successful Azure AD login\"\n| extend timestamp = TimeGenerated, AccountCustomEntity = UserPrincipalName, IPCustomEntity = IPAddress, Type = Type\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt\n",
                 "queryFrequency": "P1D",
                 "queryPeriod": "P1D",
                 "triggerOperator": "GreaterThan",
                 "triggerThreshold": 0,
                 "suppressionDuration": "PT5H",
                 "suppressionEnabled": false,
+                "startTimeUtc": null,
                 "tactics": [
                     "InitialAccess",
                     "CredentialAccess"
@@ -454,7 +464,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.1.3"
+                "templateVersion": "1.1.4"
             }
         },
         {
@@ -609,10 +619,10 @@
             "apiVersion": "2022-09-01-preview",
             "properties": {
                 "displayName": "[concat(parameters('workspace'),' - Password spray attack against Azure AD application')]",
-                "description": "Identifies evidence of password spray activity against Microsoft Entra ID applications by looking for failures from multiple accounts from the same\nIP address within a time window. If the number of accounts breaches the threshold just once, all failures from the IP address within the time range\nare bought into the result. Details on whether there were successful authentications by the IP address within the time window are also included.\nThis can be an indicator that an attack was successful.\nThe default failure acccount threshold is 5, Default time window for failures is 20m and default look back window is 3 days\nNote: Due to the number of possible accounts involved in a password spray it is not possible to map identities to a custom entity.\nReferences: https://docs.microsoft.com/azure/active-directory/reports-monitoring/reference-sign-ins-error-codes.",
+                "description": "Identifies evidence of password spray activity against Microsoft Entra ID applications by looking for failures from multiple accounts from the same\nIP address within a time window. If the number of accounts breaches the threshold just once, all failures from the IP address within the time range\nare bought into the result. Details on whether there were successful authentications by the IP address within the time window are also included.\nThis can be an indicator that an attack was successful.\nThe default failure acccount threshold is 5, Default time window for failures is 20m and default look back window is 1 day\nNote: Due to the number of possible accounts involved in a password spray it is not possible to map identities to a custom entity.\nReferences: https://docs.microsoft.com/azure/active-directory/reports-monitoring/reference-sign-ins-error-codes.",
                 "severity": "Medium",
                 "enabled": true,
-                "query": "let timeRange = 3d;\nlet lookBack = 7d;\nlet authenticationWindow = 20m;\nlet authenticationThreshold = 5;\nlet isGUID = \"[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}\";\nlet failureCodes = dynamic([50053, 50126, 50055]); // invalid password, account is locked - too many sign ins, expired password\nlet successCodes = dynamic([0, 50055, 50057, 50155, 50105, 50133, 50005, 50076, 50079, 50173, 50158, 50072, 50074, 53003, 53000, 53001, 50129]);\n// Lookup up resolved identities from last 7 days\nlet aadFunc = (tableName:string){\nlet identityLookup = table(tableName)\n| where TimeGenerated >= ago(lookBack)\n| where not(Identity matches regex isGUID)\n| where isnotempty(UserId)\n| summarize by UserId, lu_UserDisplayName = UserDisplayName, lu_UserPrincipalName = UserPrincipalName, Type;\n// collect window threshold breaches\ntable(tableName)\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(failureCodes)\n| summarize FailedPrincipalCount = dcount(UserPrincipalName) by bin(TimeGenerated, authenticationWindow), IPAddress, AppDisplayName, Type\n| where FailedPrincipalCount >= authenticationThreshold\n| summarize WindowThresholdBreaches = count() by IPAddress, Type\n| join kind= inner (\n// where we breached a threshold, join the details back on all failure data\ntable(tableName)\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(failureCodes)\n| extend LocationDetails = todynamic(LocationDetails)\n| extend FullLocation = strcat(LocationDetails.countryOrRegion,'|', LocationDetails.state, '|', LocationDetails.city)\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated), make_set(ClientAppUsed,20), make_set(FullLocation,20), FailureCount = count() by IPAddress, AppDisplayName, UserPrincipalName, UserDisplayName, Identity, UserId, Type\n// lookup any unresolved identities\n| extend UnresolvedUserId = iff(Identity matches regex isGUID, UserId, \"\")\n| join kind= leftouter (\n identityLookup\n) on $left.UnresolvedUserId==$right.UserId\n| extend UserDisplayName=iff(isempty(lu_UserDisplayName), UserDisplayName, lu_UserDisplayName)\n| extend UserPrincipalName=iff(isempty(lu_UserPrincipalName), UserPrincipalName, lu_UserPrincipalName)\n| summarize StartTime = min(StartTime), EndTime = max(EndTime), make_set(UserPrincipalName,20), make_set(UserDisplayName,20), make_set(set_ClientAppUsed,20), make_set(set_FullLocation,20), make_list(FailureCount,20) by IPAddress, AppDisplayName, Type\n| extend FailedPrincipalCount = array_length(set_UserPrincipalName)\n) on IPAddress\n| project IPAddress, StartTime, EndTime, TargetedApplication=AppDisplayName, FailedPrincipalCount, UserPrincipalNames=set_UserPrincipalName, UserDisplayNames=set_UserDisplayName, ClientAppsUsed=set_set_ClientAppUsed, Locations=set_set_FullLocation, FailureCountByPrincipal=list_FailureCount, WindowThresholdBreaches, Type\n| join kind= inner (\ntable(tableName) // get data on success vs. failure history for each IP\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(successCodes) or ResultType in(failureCodes) // success or failure types\n| summarize GlobalSuccessPrincipalCount = dcountif(UserPrincipalName, (ResultType in (successCodes))), ResultTypeSuccesses = make_set_if(ResultType, (ResultType in (successCodes))), GlobalFailPrincipalCount = dcountif(UserPrincipalName, (ResultType in (failureCodes))), ResultTypeFailures = make_set_if(ResultType, (ResultType in (failureCodes))) by IPAddress, Type\n| where GlobalFailPrincipalCount > GlobalSuccessPrincipalCount // where the number of failed principals is greater than success - eliminates FPs from IPs who authenticate successfully alot and as a side effect have alot of failures\n) on IPAddress\n| project-away IPAddress1\n| extend timestamp=StartTime\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt\n",
+                "query": "let timeRange = 1d;\nlet lookBack = 7d;\nlet authenticationWindow = 20m;\nlet authenticationThreshold = 5;\nlet isGUID = \"[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}\";\nlet failureCodes = dynamic([50053, 50126, 50055]); // invalid password, account is locked - too many sign ins, expired password\nlet successCodes = dynamic([0, 50055, 50057, 50155, 50105, 50133, 50005, 50076, 50079, 50173, 50158, 50072, 50074, 53003, 53000, 53001, 50129]);\n// Lookup up resolved identities from last 7 days\nlet aadFunc = (tableName:string){\nlet identityLookup = table(tableName)\n| where TimeGenerated >= ago(lookBack)\n| where not(Identity matches regex isGUID)\n| where isnotempty(UserId)\n| summarize by UserId, lu_UserDisplayName = UserDisplayName, lu_UserPrincipalName = UserPrincipalName, Type;\n// collect window threshold breaches\ntable(tableName)\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(failureCodes)\n| summarize FailedPrincipalCount = dcount(UserPrincipalName) by bin(TimeGenerated, authenticationWindow), IPAddress, AppDisplayName, Type\n| where FailedPrincipalCount >= authenticationThreshold\n| summarize WindowThresholdBreaches = count() by IPAddress, Type\n| join kind= inner (\n// where we breached a threshold, join the details back on all failure data\ntable(tableName)\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(failureCodes)\n| extend LocationDetails = todynamic(LocationDetails)\n| extend FullLocation = strcat(LocationDetails.countryOrRegion,'|', LocationDetails.state, '|', LocationDetails.city)\n| summarize StartTime = min(TimeGenerated), EndTime = max(TimeGenerated), make_set(ClientAppUsed,20), make_set(FullLocation,20), FailureCount = count() by IPAddress, AppDisplayName, UserPrincipalName, UserDisplayName, Identity, UserId, Type\n// lookup any unresolved identities\n| extend UnresolvedUserId = iff(Identity matches regex isGUID, UserId, \"\")\n| join kind= leftouter (\n identityLookup\n) on $left.UnresolvedUserId==$right.UserId\n| extend UserDisplayName=iff(isempty(lu_UserDisplayName), UserDisplayName, lu_UserDisplayName)\n| extend UserPrincipalName=iff(isempty(lu_UserPrincipalName), UserPrincipalName, lu_UserPrincipalName)\n| summarize StartTime = min(StartTime), EndTime = max(EndTime), make_set(UserPrincipalName,20), make_set(UserDisplayName,20), make_set(set_ClientAppUsed,20), make_set(set_FullLocation,20), make_list(FailureCount,20) by IPAddress, AppDisplayName, Type\n| extend FailedPrincipalCount = array_length(set_UserPrincipalName)\n) on IPAddress\n| project IPAddress, StartTime, EndTime, TargetedApplication=AppDisplayName, FailedPrincipalCount, UserPrincipalNames=set_UserPrincipalName, UserDisplayNames=set_UserDisplayName, ClientAppsUsed=set_set_ClientAppUsed, Locations=set_set_FullLocation, FailureCountByPrincipal=list_FailureCount, WindowThresholdBreaches, Type\n| join kind= inner (\ntable(tableName) // get data on success vs. failure history for each IP\n| where TimeGenerated > ago(timeRange)\n| where ResultType in(successCodes) or ResultType in(failureCodes) // success or failure types\n| summarize GlobalSuccessPrincipalCount = dcountif(UserPrincipalName, (ResultType in (successCodes))), ResultTypeSuccesses = make_set_if(ResultType, (ResultType in (successCodes))), GlobalFailPrincipalCount = dcountif(UserPrincipalName, (ResultType in (failureCodes))), ResultTypeFailures = make_set_if(ResultType, (ResultType in (failureCodes))) by IPAddress, Type\n| where GlobalFailPrincipalCount > GlobalSuccessPrincipalCount // where the number of failed principals is greater than success - eliminates FPs from IPs who authenticate successfully alot and as a side effect have alot of failures\n) on IPAddress\n| project-away IPAddress1\n| extend timestamp=StartTime\n};\nlet aadSignin = aadFunc(\"SigninLogs\");\nlet aadNonInt = aadFunc(\"AADNonInteractiveUserSignInLogs\");\nunion isfuzzy=true aadSignin, aadNonInt\n",
                 "queryFrequency": "P1D",
                 "queryPeriod": "P7D",
                 "triggerOperator": "GreaterThan",
@@ -656,7 +666,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.5"
+                "templateVersion": "1.0.6"
             }
         },
         {
