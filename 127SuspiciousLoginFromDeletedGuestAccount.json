@@ -61,6 +61,10 @@
                             {
                                 "identifier": "UPNSuffix",
                                 "columnName": "AccountUPNSuffix"
+                            },
+                            {
+                                "identifier": "FullName",
+                                "columnName": "UserPrincipalName"
                             }
                         ]
                     },
@@ -75,7 +79,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.3"
+                "templateVersion": "1.0.4"
             }
         }
     ]
