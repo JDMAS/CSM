@@ -109,8 +109,7 @@
                         ]
                     }
                 ],
-                "sentinelEntitiesMappings": null,
-                "templateVersion": "1.0.3"
+                "sentinelEntitiesMappings": null
             }
         }
     ]
