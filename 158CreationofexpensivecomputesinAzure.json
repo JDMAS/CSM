@@ -55,6 +55,10 @@
                         "entityType": "Account",
                         "fieldMappings": [
                             {
+                                "identifier": "FullName",
+                                "columnName": "Caller"
+                            },
+                            {
                                 "identifier": "Name",
                                 "columnName": "Name"
                             },
@@ -84,7 +88,7 @@
                     }
                 ],
                 "sentinelEntitiesMappings": null,
-                "templateVersion": "2.0.2"
+                "templateVersion": "2.0.3"
             }
         }
     ]
