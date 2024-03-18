@@ -1,2 +1,0 @@
-# CSM
-Cloud Security Management
